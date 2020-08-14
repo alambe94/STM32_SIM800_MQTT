@@ -91,7 +91,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-  SIM800_MQTT_Init();
+  SIM800_Init();
 
   SIM800_MQTT_Connect("airtelgprs.com",
 		              "io.adafruit.com",

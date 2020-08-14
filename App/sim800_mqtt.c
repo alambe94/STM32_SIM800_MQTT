@@ -30,6 +30,7 @@ static void RB_Flush()
 /**
  * @brief check if ring buffer is full
  * @retval return 1 if ring buffer is full
+ * @note since data is written by dma, RB_Full_Flag can be not set at proper place. So this function is not useful in this context.
  */
 static uint8_t RB_Is_Full()
 {
@@ -40,7 +41,7 @@ static uint8_t RB_Is_Full()
  * @brief check number of chars in ring buffer
  * @retval return number of chars in ring buffer
  */
-static uint16_t RB_Get_Count()
+static uint32_t RB_Get_Count()
 {
     if (RB_Full_Flag)
         return RB_STORAGE_SIZE;
@@ -62,16 +63,17 @@ static uint8_t RB_Is_Empty()
  * @brief return a char from from ring buffer
  * @retval char return
  */
-static uint8_t RB_Get_Char()
+static int RB_Get_Char()
 {
     if (RB_Is_Empty())
     {
         /** exception */
-        return 0;
+        return -1;
     }
 
     uint8_t temp = RB_Storage[RB_Read_Index++];
     RB_Full_Flag = 0;
+
     if (RB_Read_Index == RB_STORAGE_SIZE)
         RB_Read_Index = 0;
 
@@ -85,24 +87,24 @@ static uint8_t RB_Get_Char()
  * @param cnt  number of char to retrieve
  * @param timeout max wait time in milliseconds
  */
-static uint16_t RB_Get_Chars(char *buff, uint16_t cnt, uint32_t timeout)
+static uint32_t RB_Get_Chars(char *buff, uint32_t cnt, uint32_t timeout)
 {
     uint32_t tick_now = HAL_GetTick();
-    uint32_t tick_timout = tick_now + timeout;
-    uint16_t count = cnt;
+    uint32_t tick_timeout = tick_now + timeout;
+    uint32_t count = cnt;
 
-    while (RB_Get_Count() < cnt && (tick_now < tick_timout))
+    while (RB_Get_Count() < cnt && (tick_now < tick_timeout))
     {
         tick_now = HAL_GetTick();
     }
 
-    if (tick_now >= tick_timout)
+    if (tick_now >= tick_timeout)
     {
-    	/** get bytes available within timeout */
+        /** get bytes available within timeout */
         count = RB_Get_Count();
     }
 
-    for (uint16_t i = 0; i < count; i++)
+    for (uint32_t i = 0; i < count; i++)
     {
         buff[i] = RB_Get_Char();
     }
@@ -151,7 +153,7 @@ void SIM800_UART_Send_String(char *str)
 /**
  * @brief Init peripheral ised by sim800
  */
-void SIM800_MQTT_Init(void)
+void SIM800_Init(void)
 {
     /** uart used for comm is configured in cube @see usart.c */
 
@@ -164,13 +166,14 @@ void SIM800_MQTT_Init(void)
     /** send dummy, so sim800 can auto adjust its baud */
     SIM800_UART_Send_String("AT\r\n");
 
+    /** disable echo */
     SIM800_UART_Send_String("ATE0\r\n");
 
     HAL_Delay(1);
+    RB_Flush();
 
     /** just to suppress compiler warning */
     RB_Is_Full();
-    RB_Flush();
 }
 
 /**
@@ -180,7 +183,7 @@ void SIM800_MQTT_Init(void)
  * @param timeout max wait time in milliseconds
  * @retval number chars in response
  */
-uint16_t SIM800_Get_Response(char *buff, uint16_t cnt, uint32_t timeout)
+uint32_t SIM800_Get_Response(char *buff, uint32_t cnt, uint32_t timeout)
 {
     return RB_Get_Chars(buff, cnt, timeout);
 }
@@ -194,7 +197,7 @@ uint16_t SIM800_Get_Response(char *buff, uint16_t cnt, uint32_t timeout)
 uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
 {
     char reply[32];
-    uint16_t cnt = strnlen(buff, sizeof(reply));
+    uint32_t cnt = strnlen(buff, sizeof(reply));
     RB_Get_Chars(reply, cnt, timeout);
 
     return !strncmp(buff, reply, cnt);
@@ -216,26 +219,26 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_MQTT_Connect(char *sim_apn,
                             char *broker,
-                            uint16_t port,
+                            uint32_t port,
                             char *protocol_name,
                             uint8_t protocol_version,
                             uint8_t flags,
-                            uint16_t keep_alive,
+                            uint32_t keep_alive,
                             char *my_id,
                             char *user_name,
                             char *password)
 {
     char working_buffer[64];
     char sim800_reply[32];
-    uint16_t sim800_result;
+    uint8_t sim800_result;
 
     /**************************************************************** TCP connection start *********************************************************************/
 
     SIM800_UART_Send_String("AT\r\n");
-    sim800_result = SIM800_Check_Response("\r\nOK", 1000); /** expected reply "OK\r\n" within 1 second "*/
+    sim800_result = SIM800_Check_Response("\r\nOK", 1000); /** expected reply "\r\nOK" within 1 second "*/
 
     SIM800_UART_Send_String("AT+CGATT?\r\n");              /** GPRS Service’s status */
-    sim800_result = SIM800_Check_Response("\r\nOK", 1000); /** expected reply "OK\r\n" within 1 second "*/
+    sim800_result = SIM800_Check_Response("\r\nOK", 1000); /** expected reply "\r\nOK" within 1 second "*/
 
     if (sim800_result)
     {
@@ -266,7 +269,7 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
         /** assemble server ip and port */
         snprintf(working_buffer,
                  sizeof(working_buffer),
-                 "AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
+                 "AT+CIPSTART=\"TCP\",\"%s\",\"%ld\"\r\n",
                  broker,
                  port);
 
@@ -292,7 +295,7 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
         uint8_t user_name_len = strlen(user_name);
         uint8_t password_len = strlen(password);
 
-        uint16_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
+        uint32_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
 
         do
         {
@@ -344,9 +347,9 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
  * @param mesaage_len message length
  * @retval return 1 if success else 0
  */
-uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint16_t mesaage_len)
+uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 {
-    uint16_t sim800_result;
+    uint8_t sim800_result;
 
     SIM800_UART_Send_String("AT\r\n");
     sim800_result = SIM800_Check_Response("OK\r\n", 1000); /** expected reply "OK\r\n" within 1 second "*/
@@ -363,7 +366,7 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint16_t mesaage_len)
 
         SIM800_UART_Send_Char(0x30); /** MQTT subscribe fixed header */
 
-        uint16_t packet_len = 2 + topic_len + mesaage_len;
+        uint32_t packet_len = 2 + topic_len + mesaage_len;
 
         do
         {
@@ -399,7 +402,7 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint16_t mesaage_len)
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    uint16_t sim800_result;
+    uint8_t sim800_result;
 
     SIM800_UART_Send_String("AT\r\n");
     sim800_result = SIM800_Check_Response("OK\r\n", 1000); /** expected reply "OK\r\n" within 1 second "*/
@@ -414,7 +417,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
     {
         uint8_t topic_len = strlen(topic);
 
-        uint16_t packet_len = 2 + 2 + topic_len + 1;
+        uint32_t packet_len = 2 + 2 + topic_len + 1;
 
         SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
 
@@ -460,7 +463,7 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message)
  */
 void SIM800_MQTT_Loop()
 {
-    while (RB_Get_Char())
+    while (RB_Get_Count())
     {
     }
 }
