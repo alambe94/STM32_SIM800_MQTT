@@ -20,9 +20,9 @@ void SIM800_UART_Send_Bytes(char *data, uint32_t count);
 
 void SIM800_UART_Send_String(char *str);
 
-uint32_t SIM800_Get_Response(char *buff, uint32_t cnt, uint32_t timeout);
+uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 
-uint8_t SIM800_Check_Response(char *buff, char *alt_buff, uint32_t count, uint32_t timeout);
+uint8_t SIM800_Check_Response(char *buff, char *alt_buff, uint32_t timeout);
 
 uint8_t SIM800_MQTT_Publish(char *topic, char *payload, uint32_t payload_len);
 
