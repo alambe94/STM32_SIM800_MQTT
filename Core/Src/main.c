@@ -93,6 +93,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
   SIM800_Init();
 
+  char buff[32];
+
+  uint8_t sim800_result;
+
   SIM800_MQTT_Connect("airtelgprs.com",
 		              "io.adafruit.com",
 		              1883,
