@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "sim800_mqtt.h"
+#include "stdlib.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -110,7 +111,13 @@ int main(void)
                                       "alsaad",
                                       "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 
-sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "123", 3);
+  for(uint32_t i=0; i<100; i++)
+  {
+	  char buff[10];
+	  itoa(i, buff, 10);
+	  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", buff, 3);
+	  HAL_Delay(1000);
+  }
 //  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "124", 3);
 //  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "125", 3);
 //  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "126", 3);
