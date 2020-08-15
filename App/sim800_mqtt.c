@@ -21,25 +21,6 @@ static uint8_t RB_Write_Index;
 static uint8_t RB_Full_Flag;
 
 /**
- * AT+CGATT? - > +CGATT: 1 OK
- * AT+CSTT=”airtelgprs.com” -> OK
- * AT+CIICR -> OK
- * AT+CIFSR -> 100.82.109.129
- * AT+CIPSTART=”TCP”,”io.adafruit.com”,“1883”
- *
- * Call Ready
- * SMS Ready
- *
- * *PSUTTZ:
- * DST:
- *
- *
- *
- *
- *
- **/
-
-/**
  * @brief flush ring buffer
  */
 static void RB_Flush()
@@ -455,7 +436,7 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
     return sim800_result;
 }
 
-#if 0
+
 /**
  * @brief publish message to a topic
  * @param topic topic to which message will be published
@@ -466,21 +447,22 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
 uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 {
     uint8_t sim800_result;
+    char pub_ack[4];
 
     SIM800_UART_Send_String("AT\r\n");
-    sim800_result = SIM800_Check_Response("OK\r\n", NULL, 1, 1000); /** expected reply "OK\r\n" within 1 second "*/
+    sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
 
     if (sim800_result)
     {
         SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
-        sim800_result = SIM800_Check_Response(">", NULL, 1, 3000);
+        sim800_result = SIM800_Check_Response(">", 5000);
     }
 
     if (sim800_result)
     {
         uint8_t topic_len = strlen(topic);
 
-        SIM800_UART_Send_Char(0x30); /** MQTT subscribe fixed header */
+        SIM800_UART_Send_Char(0x30); /** MQTT publish fixed header */
 
         uint32_t packet_len = 2 + topic_len + mesaage_len;
 
@@ -503,12 +485,25 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 
         SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
 
-        sim800_result = SIM800_Check_Response(">", NULL, 1, 3000); /** TODO */
+        pub_ack[0] = SIM800_UART_Get_Char(1000); /** expected value 0x40 */
+        pub_ack[1] = SIM800_UART_Get_Char(1000); /** expected value 0x02 */
+
+        pub_ack[2] = SIM800_UART_Get_Char(1000);
+        pub_ack[3] = SIM800_UART_Get_Char(1000);
+
+        if (pub_ack[0] == 0x40 && pub_ack[1] == 0x02)
+        {
+            sim800_result = 1;
+        }
+        else
+        {
+            sim800_result = 0;
+        }
     }
 
     return sim800_result;
 }
-
+#if 0
 /**
  * @brief subscribe to a topic
  * @param topic topic to be subscribe to

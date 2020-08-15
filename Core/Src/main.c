@@ -110,6 +110,11 @@ int main(void)
                                       "alsaad",
                                       "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 
+  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "123", 3);
+  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "124", 3);
+  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "125", 3);
+  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "126", 3);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
