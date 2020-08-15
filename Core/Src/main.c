@@ -90,23 +90,25 @@ int main(void)
   MX_DMA_Init();
   MX_USART3_UART_Init();
   MX_USART6_UART_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  SIM800_Init();
 
   char buff[32];
 
   uint8_t sim800_result;
 
-  SIM800_MQTT_Connect("airtelgprs.com",
-		              "io.adafruit.com",
-		              1883,
-		              "MQTT",
-		              3,
-		              0xC2,
-		              60,
-		              "sim800test",
-		              "alsaad",
-		              "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
+  sim800_result = SIM800_Init();
+
+  sim800_result = SIM800_MQTT_Connect("airtelgprs.com",
+                                      "io.adafruit.com",
+                                      1883,
+                                      "MQTT",
+                                      3,
+                                      0xC2,
+                                      60,
+                                      "sim800test",
+                                      "alsaad",
+                                      "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 
   /* USER CODE END 2 */
 

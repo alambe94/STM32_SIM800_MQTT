@@ -1,7 +1,7 @@
 #ifndef SIM800_MQTT_H_
 #define SIM800_MQTT_H_
 
-void SIM800_Init(void);
+uint8_t SIM800_Init(void);
 
 void SIM800_Flush_RX();
 
@@ -22,7 +22,7 @@ void SIM800_UART_Send_String(char *str);
 
 uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 
-uint8_t SIM800_Check_Response(char *buff, char *alt_buff, uint32_t timeout);
+uint8_t SIM800_Check_Response(char *buff, uint32_t timeout);
 
 uint8_t SIM800_MQTT_Publish(char *topic, char *payload, uint32_t payload_len);
 
