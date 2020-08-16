@@ -111,17 +111,17 @@ int main(void)
                                       "alsaad",
                                       "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 
-  for(uint32_t i=0; i<100; i++)
+  if (sim800_result)
   {
-	  char buff[10];
-	  itoa(i, buff, 10);
-	  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", buff, 3);
-	  HAL_Delay(1000);
+    for (uint32_t i = 0; i < 100; i++)
+    {
+      char buff[10];
+      itoa(i, buff, 10);
+      sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", buff, 3);
+      HAL_Delay(1000);
+    }
   }
-//  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "124", 3);
-//  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "125", 3);
-//  sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", "126", 3);
-
+  
   /* USER CODE END 2 */
 
   /* Infinite loop */

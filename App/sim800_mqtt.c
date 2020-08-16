@@ -240,7 +240,7 @@ uint8_t SIM800_Init(void)
     HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
     HAL_Delay(1000);
     HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
-    HAL_Delay(3000);
+    HAL_Delay(5000);
 
     /** send dummy, so sim800 can auto adjust its baud */
     SIM800_UART_Send_String("AT\r\n");
@@ -258,6 +258,19 @@ uint8_t SIM800_Init(void)
         {
             break;
         }
+    }
+
+    lines = 20;
+    while (lines--)
+    {
+        SIM800_UART_Send_String("AT+CGATT?\r\n");                                                     /** GPRS Service’s status */
+        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000) && SIM800_Check_Response("OK", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
+        if (sim800_result)
+        {
+            break;
+        }
+
+        HAL_Delay(3000);
     }
 
     RB_Flush();
@@ -341,9 +354,8 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
     SIM800_UART_Send_String("AT\r\n");
     sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
 
-    SIM800_UART_Send_String("AT+CGATT?\r\n");                 /** GPRS Service’s status */
-    sim800_result = SIM800_Check_Response("+CGATT: 1", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
-    sim800_result = SIM800_Check_Response("OK", 3000);        /** expected reply "OK" within 1 second "*/
+    SIM800_UART_Send_String("AT+CGATT?\r\n");                                                     /** GPRS Service’s status */
+    sim800_result = SIM800_Check_Response("+CGATT: 1", 1000) && SIM800_Check_Response("OK", 3000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
 
     if (sim800_result)
     {
@@ -457,16 +469,9 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
 uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 {
     uint8_t sim800_result;
-    char pub_ack[4];
 
-    SIM800_UART_Send_String("AT\r\n");
-    sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
-
-    if (sim800_result)
-    {
-        SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
-        sim800_result = SIM800_Check_Response(">", 3000);
-    }
+    SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
+    sim800_result = SIM800_Check_Response(">", 3000);
 
     if (sim800_result)
     {
@@ -588,5 +593,7 @@ void SIM800_UART_RX_ISR(void)
         /** data is written to buffer via uart DMA in background*/
         /** need to update Write_Index manually */
         RB_Write_Index = RB_STORAGE_SIZE - SIM800_UART->hdmarx->Instance->NDTR;
+
+        RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
     }
 }
