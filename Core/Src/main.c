@@ -100,6 +100,11 @@ int main(void)
 
   sim800_result = SIM800_Init();
 
+  if(!sim800_result)
+  {
+while(1);
+  }
+
   sim800_result = SIM800_MQTT_Connect("airtelgprs.com",
                                       "io.adafruit.com",
                                       1883,

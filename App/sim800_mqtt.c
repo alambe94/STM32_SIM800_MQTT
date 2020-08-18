@@ -260,16 +260,16 @@ uint8_t SIM800_Init(void)
         }
     }
 
-    lines = 20;
+    lines = 10;
     while (lines--)
     {
         SIM800_UART_Send_String("AT+CGATT?\r\n");                                                     /** GPRS Service’s status */
-        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000) && SIM800_Check_Response("OK", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
+        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
         if (sim800_result)
         {
             break;
         }
-
+        sim800_result = SIM800_Check_Response("OK", 1000);
         HAL_Delay(3000);
     }
 
@@ -351,16 +351,16 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
 
     /**************************************************************** TCP connection start *********************************************************************/
 
-    SIM800_UART_Send_String("AT\r\n");
-    sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
+    SIM800_UART_Send_String("AT+CIPSHUT\r\n");
+    sim800_result = SIM800_Check_Response("SHUT OK", 1000); /** expected reply "OK" within 1 second "*/
 
-    SIM800_UART_Send_String("AT+CGATT?\r\n");                                                     /** GPRS Service’s status */
-    sim800_result = SIM800_Check_Response("+CGATT: 1", 1000) && SIM800_Check_Response("OK", 3000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
+    SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
+    sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
 
     if (sim800_result)
     {
         /** assemble sim apn */
-        SIM800_UART_Printf("AT+CSTT=\"%s\"\r\n", sim_apn);
+        SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", sim_apn);
         sim800_result = SIM800_Check_Response("OK", 3000); /** expected reply "OK" within 1 second "*/
     }
 
@@ -383,7 +383,7 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
                            broker,
                            port);
         sim800_result = SIM800_Check_Response("OK", 5000); /** expected reply "OK" and "CONNECT OK" within 10 second */
-        sim800_result = SIM800_Check_Response("CONNECT OK", 5000);
+        sim800_result = SIM800_Check_Response("CONNECT", 5000);
     }
     /**************************************************************** TCP connection end *********************************************************************/
 
@@ -391,8 +391,8 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
 
     if (sim800_result)
     {
-        SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promt mark ">" */
-        sim800_result = SIM800_Check_Response(">", 3000);
+        //SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promt mark ">" */
+        //sim800_result = SIM800_Check_Response(">", 3000);
     }
 
     if (sim800_result)
@@ -440,8 +440,8 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
         SIM800_UART_Send_Char(password_len & 0xFF);
         SIM800_UART_Send_String(password);
 
-        SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
-        sim800_result = SIM800_Check_Response("SEND OK", 5000);
+        //SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
+        //sim800_result = SIM800_Check_Response("SEND OK", 5000);
 
         SIM800_UART_Get_Chars(conn_ack, 4, 5000);
 
@@ -470,8 +470,8 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 {
     uint8_t sim800_result;
 
-    SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
-    sim800_result = SIM800_Check_Response(">", 3000);
+    //SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
+    //sim800_result = SIM800_Check_Response(">", 3000);
 
     if (sim800_result)
     {
@@ -498,8 +498,8 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
         SIM800_UART_Send_String(topic);
         SIM800_UART_Send_Bytes(mesaage, mesaage_len);
 
-        SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
-        sim800_result = SIM800_Check_Response("SEND OK", 5000);
+        //SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
+        //sim800_result = SIM800_Check_Response("SEND OK", 5000);
     }
 
     return sim800_result;
