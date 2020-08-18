@@ -17,8 +17,8 @@ UART_HandleTypeDef *SIM800_UART = &huart3;
 #define RB_STORAGE_SIZE 1024
 static uint8_t RB_Storage[RB_STORAGE_SIZE];
 static uint8_t RB_Read_Index;
-static uint8_t RB_Write_Index;
-static uint8_t RB_Full_Flag;
+static volatile uint8_t RB_Write_Index;
+static volatile uint8_t RB_Full_Flag;
 
 /**
  * @brief flush ring buffer
@@ -44,7 +44,7 @@ static uint8_t RB_Is_Full()
  */
 static uint32_t RB_Get_Count()
 {
-    if (RB_Full_Flag)
+    if (RB_Is_Full())
         return RB_STORAGE_SIZE;
     if (RB_Write_Index >= RB_Read_Index)
         return (RB_Write_Index - RB_Read_Index);
