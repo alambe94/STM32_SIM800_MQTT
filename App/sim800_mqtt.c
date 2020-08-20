@@ -263,7 +263,7 @@ uint8_t SIM800_Init(void)
     lines = 20;
     while (lines--)
     {
-        SIM800_UART_Send_String("AT+CGATT?\r\n");                                                     /** GPRS Service’s status */
+        SIM800_UART_Send_String("AT+CGATT?\r\n");                 /** GPRS Service’s status */
         sim800_result = SIM800_Check_Response("+CGATT: 1", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
         if (sim800_result)
         {
@@ -366,7 +366,7 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
 
     if (sim800_result)
     {
-        SIM800_UART_Send_String("AT+CIICR\r\n");           /** Bring up wireless connection (GPRS or CSD) */
+        SIM800_UART_Send_String("AT+CIICR\r\n"); /** Bring up wireless connection (GPRS or CSD) */
         sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
@@ -388,12 +388,6 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
     /**************************************************************** TCP connection end *********************************************************************/
 
     /*************************************************************** MQTT connection start *******************************************************************/
-
-    if (sim800_result)
-    {
-        //SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promt mark ">" */
-        //sim800_result = SIM800_Check_Response(">", 3000);
-    }
 
     if (sim800_result)
     {
@@ -440,9 +434,6 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
         SIM800_UART_Send_Char(password_len & 0xFF);
         SIM800_UART_Send_String(password);
 
-        //SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
-        //sim800_result = SIM800_Check_Response("SEND OK", 5000);
-
         SIM800_UART_Get_Chars(conn_ack, 4, 5000);
 
         if (conn_ack[0] == 0x20 && conn_ack[1] == 0x02 && conn_ack[2] == 0x00 && conn_ack[3] == 0x00)
@@ -470,37 +461,28 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 {
     uint8_t sim800_result;
 
-    //SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
-    //sim800_result = SIM800_Check_Response(">", 3000);
+    uint8_t topic_len = strlen(topic);
 
-    if (sim800_result)
+    SIM800_UART_Send_Char(0x30); /** MQTT publish fixed header */
+
+    uint32_t packet_len = 2 + topic_len + mesaage_len;
+
+    do
     {
-        uint8_t topic_len = strlen(topic);
-
-        SIM800_UART_Send_Char(0x30); /** MQTT publish fixed header */
-
-        uint32_t packet_len = 2 + topic_len + mesaage_len;
-
-        do
+        uint8_t len = packet_len % 128;
+        packet_len = packet_len / 128;
+        if (packet_len > 0)
         {
-            uint8_t len = packet_len % 128;
-            packet_len = packet_len / 128;
-            if (packet_len > 0)
-            {
-                len |= 128;
-            }
-            SIM800_UART_Send_Char(len);
-        } while (packet_len > 0);
+            len |= 128;
+        }
+        SIM800_UART_Send_Char(len);
+    } while (packet_len > 0);
 
-        SIM800_UART_Send_Char(topic_len >> 8);
-        SIM800_UART_Send_Char(topic_len & 0xFF);
+    SIM800_UART_Send_Char(topic_len >> 8);
+    SIM800_UART_Send_Char(topic_len & 0xFF);
 
-        SIM800_UART_Send_String(topic);
-        SIM800_UART_Send_Bytes(mesaage, mesaage_len);
-
-        //SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
-        //sim800_result = SIM800_Check_Response("SEND OK", 5000);
-    }
+    SIM800_UART_Send_String(topic);
+    SIM800_UART_Send_Bytes(mesaage, mesaage_len);
 
     return sim800_result;
 }
