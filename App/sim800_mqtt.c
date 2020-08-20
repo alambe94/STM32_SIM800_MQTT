@@ -486,7 +486,7 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
 
     return sim800_result;
 }
-#if 0
+
 /**
  * @brief subscribe to a topic
  * @param topic topic to be subscribe to
@@ -498,51 +498,38 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
     uint8_t sim800_result;
 
-    SIM800_UART_Send_String("AT\r\n");
-    sim800_result = SIM800_Check_Response("OK\r\n", NULL, 6, 1000); /** expected reply "OK\r\n" within 1 second "*/
+    uint8_t topic_len = strlen(topic);
 
-    if (sim800_result)
+    uint32_t packet_len = 2 + 2 + topic_len + 1;
+
+    SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
+
+    do
     {
-        SIM800_UART_Send_String("AT+CIPSEND\r\n"); /** Send data to remote server after promoting mark ">" */
-        sim800_result = SIM800_Check_Response(">", NULL, 1, 3000);
-    }
-
-    if (sim800_result)
-    {
-        uint8_t topic_len = strlen(topic);
-
-        uint32_t packet_len = 2 + 2 + topic_len + 1;
-
-        SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
-
-        do
+        uint8_t len = packet_len % 128;
+        packet_len = packet_len / 128;
+        if (packet_len > 0)
         {
-            uint8_t len = packet_len % 128;
-            packet_len = packet_len / 128;
-            if (packet_len > 0)
-            {
-                len |= 128;
-            }
-            SIM800_UART_Send_Char(len);
-        } while (packet_len > 0);
+            len |= 128;
+        }
+        SIM800_UART_Send_Char(len);
+    } while (packet_len > 0);
 
-        SIM800_UART_Send_Char(packet_id >> 8);
-        SIM800_UART_Send_Char(packet_id & 0xFF);
+    SIM800_UART_Send_Char(packet_id >> 8);
+    SIM800_UART_Send_Char(packet_id & 0xFF);
 
-        SIM800_UART_Send_Char(topic_len >> 8);
-        SIM800_UART_Send_Char(topic_len & 0xFF);
+    SIM800_UART_Send_Char(topic_len >> 8);
+    SIM800_UART_Send_Char(topic_len & 0xFF);
 
-        SIM800_UART_Send_String(topic);
+    SIM800_UART_Send_String(topic);
 
-        SIM800_UART_Send_Char(qos);
+    SIM800_UART_Send_Char(qos);
 
-        SIM800_UART_Send_Char(0x1A); /**  CTRL+Z (0x1A) to send */
+    /** TODO handle suback */
 
-        sim800_result = SIM800_Check_Response(">", NULL, 1, 3000); /** TODO */
-    }
     return sim800_result;
 }
-#endif
+
 /**
  * @brief called when message is received TODO
  * @param topic topic on which message is received
