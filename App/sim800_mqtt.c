@@ -14,7 +14,7 @@
 UART_HandleTypeDef *SIM800_UART = &huart3;
 
 /** rx ring buffer data reception from sim800 */
-#define RB_STORAGE_SIZE 1024
+#define RB_STORAGE_SIZE 1500
 static uint8_t RB_Storage[RB_STORAGE_SIZE];
 static uint8_t RB_Read_Index;
 static volatile uint8_t RB_Write_Index;
@@ -260,7 +260,7 @@ uint8_t SIM800_Init(void)
         }
     }
 
-    lines = 10;
+    lines = 20;
     while (lines--)
     {
         SIM800_UART_Send_String("AT+CGATT?\r\n");                                                     /** GPRS Service’s status */
@@ -352,22 +352,22 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
     /**************************************************************** TCP connection start *********************************************************************/
 
     SIM800_UART_Send_String("AT+CIPSHUT\r\n");
-    sim800_result = SIM800_Check_Response("SHUT OK", 1000); /** expected reply "OK" within 1 second "*/
+    sim800_result = SIM800_Check_Response("SHUT OK", 1000);
 
     SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
-    sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
+    sim800_result = SIM800_Check_Response("OK", 1000);
 
     if (sim800_result)
     {
         /** assemble sim apn */
         SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", sim_apn);
-        sim800_result = SIM800_Check_Response("OK", 3000); /** expected reply "OK" within 1 second "*/
+        sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
     if (sim800_result)
     {
         SIM800_UART_Send_String("AT+CIICR\r\n");           /** Bring up wireless connection (GPRS or CSD) */
-        sim800_result = SIM800_Check_Response("OK", 3000); /** expected reply "OK" within 10 second */
+        sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
     if (sim800_result)

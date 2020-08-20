@@ -123,7 +123,7 @@ while(1);
       char buff[10];
       itoa(i, buff, 10);
       sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", buff, 3);
-      HAL_Delay(1000);
+      HAL_Delay(2000);
     }
   }
   
