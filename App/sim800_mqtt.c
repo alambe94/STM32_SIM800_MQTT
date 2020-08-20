@@ -237,10 +237,10 @@ uint8_t SIM800_Init(void)
     /** enable idle interrupt */
     __HAL_UART_ENABLE_IT(SIM800_UART, UART_IT_IDLE);
 
-    HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(RST_GPRS_GPIO_Port, RST_GPRS_Pin, GPIO_PIN_RESET);
     HAL_Delay(1000);
-    HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
-    HAL_Delay(5000);
+    HAL_GPIO_WritePin(RST_GPRS_GPIO_Port, RST_GPRS_Pin, GPIO_PIN_SET);
+    HAL_Delay(3000);
 
     /** send dummy, so sim800 can auto adjust its baud */
     SIM800_UART_Send_String("AT\r\n");
@@ -250,6 +250,7 @@ uint8_t SIM800_Init(void)
     SIM800_UART_Send_String("ATE0\r\n");
     HAL_Delay(100);
 
+    /** wait for "SMS Ready" */
     uint8_t lines = 10;
     while (lines--)
     {
@@ -260,11 +261,12 @@ uint8_t SIM800_Init(void)
         }
     }
 
+    /** wait until gprs is ready */
     lines = 20;
     while (lines--)
     {
         SIM800_UART_Send_String("AT+CGATT?\r\n");                 /** GPRS Service’s status */
-        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
+        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000);
         if (sim800_result)
         {
             break;
@@ -302,8 +304,6 @@ uint32_t SIM800_Get_Response(char *buff, uint32_t timeout)
 /**
  * @brief check for expected response
  * @param buff expected response
- * @param alt_buff alternate response or other substring
- * @param count max chars to receive
  * @param timeout max wait time in milliseconds
  * @retval return 1 if success else 0
  */
