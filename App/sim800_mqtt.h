@@ -3,8 +3,6 @@
 
 uint8_t SIM800_Init(void);
 
-void SIM800_Flush_RX();
-
 uint8_t SIM800_MQTT_Connect(char *sim_apn,
                          char *broker,
                          uint32_t port,
@@ -15,10 +13,6 @@ uint8_t SIM800_MQTT_Connect(char *sim_apn,
                          char *my_id,
                          char *user_name,
                          char *password);
-
-void SIM800_UART_Send_Bytes(char *data, uint32_t count);
-
-void SIM800_UART_Send_String(char *str);
 
 uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 
