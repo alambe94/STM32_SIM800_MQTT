@@ -3,16 +3,7 @@
 
 uint8_t SIM800_Init(void);
 
-uint8_t SIM800_MQTT_Connect(char *sim_apn,
-                         char *broker,
-                         uint32_t port,
-                         char *protocol_name,
-                         uint8_t protocol_version,
-                         uint8_t flags,
-                         uint32_t keep_alive,
-                         char *my_id,
-                         char *user_name,
-                         char *password);
+uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port);
 
 uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 

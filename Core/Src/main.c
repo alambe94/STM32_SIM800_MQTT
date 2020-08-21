@@ -93,39 +93,6 @@ int main(void)
   MX_USART6_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
-  char buff[32];
-
-  uint8_t sim800_result;
-
-  sim800_result = SIM800_Init();
-
-  if(!sim800_result)
-  {
-while(1);
-  }
-
-  sim800_result = SIM800_MQTT_Connect("airtelgprs.com",
-                                      "io.adafruit.com",
-                                      1883,
-                                      "MQTT",
-                                      3,
-                                      0xC2,
-                                      60,
-                                      "sim800test",
-                                      "alsaad",
-                                      "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
-
-  if (sim800_result)
-  {
-    for (uint32_t i = 0; i < 100; i++)
-    {
-      char buff[10];
-      itoa(i, buff, 10);
-      sim800_result = SIM800_MQTT_Publish("alsaad/feeds/Logger", buff, 3);
-      HAL_Delay(2000);
-    }
-  }
   
   /* USER CODE END 2 */
 

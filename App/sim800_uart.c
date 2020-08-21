@@ -183,6 +183,15 @@ void SIM800_UART_Printf(const char *fmt, ...)
 }
 
 /**
+ * @brief get characters in rx buffer
+ * @param timeout
+ */
+uint32_t SIM800_UART_Get_Count(void)
+{
+	return RB_Get_Count();
+}
+
+/**
  * @brief get character
  * @param timeout
  */
@@ -240,7 +249,7 @@ uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t timeout)
 /**
  * @brief flus sim800 rx buffer
  */
-void SIM800_Flush_RX()
+void SIM800_UART_Flush_RX()
 {
     RB_Flush();
 }

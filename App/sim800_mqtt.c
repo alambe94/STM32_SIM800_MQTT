@@ -10,97 +10,6 @@
 /** app includes */
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
-#include "MQTTPacket.h"
-#include "transport.h"
-
-enum states
-{
-    READING,
-    PUBLISHING
-};
-
-int SIM800_Send(unsigned char *address, unsigned int bytes);
-int SIM800_Receive(unsigned char *address, unsigned int maxbytes);
-
-static transport_iofunctions_t iof = {SIM800_Send, SIM800_Receive};
-
-int SIM800_Send(unsigned char *address, unsigned int bytes)
-{
-	return 1;
-}
-
-int SIM800_Receive(unsigned char *address, unsigned int maxbytes)
-{
-	return 1;
-}
-
-void MQTT_Connect(void)
-{
-    MQTTPacket_connectData conn_packet = MQTTPacket_connectData_initializer;
-    MQTTTransport mytransport;
-
-    int mysock = 0;
-    unsigned char buf[200];
-    int buflen = sizeof(buf);
-    int msgid = 1;
-    int len = 0;
-
-    // connect to TCP
-
-    mysock = transport_open(&iof);
-
-    /*  You will (or already are) 'somehow' connect(ed) to host:port via your hardware specifics. E.g.:
-		you have a serial (RS-232/UART) link
-		you have a cell modem and you issue your AT+ magic
-		you have some TCP/IP which is not lwIP (nor a full-fledged socket compliant one)
-		and you TCP connect
-	*/
-
-    mytransport.sck = &mysock;
-    mytransport.getfn = transport_getdatanb;
-    mytransport.state = 0;
-
-    conn_packet.clientID.cstring = "me";
-    conn_packet.keepAliveInterval = 20;
-    conn_packet.cleansession = 1;
-    conn_packet.username.cstring = "testuser";
-    conn_packet.password.cstring = "testpassword";
-
-    len = MQTTSerialize_connect(buf, buflen, &conn_packet);
-    /* This one blocks until it finishes sending, you will probably not want this in real life,
-	   in such a case replace this call by a scheme similar to the one you'll see in the main loop */
-    transport_sendPacketBuffer(mysock, buf, len);
-
-    printf("Sent MQTT connect\n");
-
-    /* wait for connack */
-    int frc;
-    if ((frc = MQTTPacket_readnb(buf, buflen, &mytransport)) == CONNACK)
-    {
-        unsigned char sessionPresent, connack_rc;
-        if (MQTTDeserialize_connack(&sessionPresent, &connack_rc, buf, buflen) != 1 || connack_rc != 0)
-        {
-            printf("Unable to connect, return code %d\n", connack_rc);
-        }
-    }
-    else if (frc == -1)
-    {
-    }
-
-    printf("MQTT connected\n");
-
-    len = MQTTSerialize_disconnect(buf, buflen);
-    /* Same blocking related stuff here */
-    transport_sendPacketBuffer(mysock, buf, len);
-
-    transport_close(mysock);
-
-    // close tcp
-}
-
-
-
-
 
 /**
  * @brief Init peripheral ised by sim800
@@ -115,6 +24,8 @@ uint8_t SIM800_Init(void)
     HAL_Delay(1000);
     HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
     HAL_Delay(5000);
+
+    SIM800_UART_Init();
 
     /** send dummy, so sim800 can auto adjust its baud */
     SIM800_UART_Send_String("AT\r\n");
@@ -137,8 +48,8 @@ uint8_t SIM800_Init(void)
     lines = 20;
     while (lines--)
     {
-        SIM800_UART_Send_String("AT+CGATT?\r\n");                 /** GPRS Service’s status */
-        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000); /** expected reply  "+CGATT: 1" and "OK" within 1 second "*/
+        SIM800_UART_Send_String("AT+CGATT?\r\n"); /** GPRS Service’s status */
+        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000);
         if (sim800_result)
         {
             break;
@@ -147,7 +58,7 @@ uint8_t SIM800_Init(void)
         HAL_Delay(3000);
     }
 
-    SIM800_Flush_RX();
+    SIM800_UART_Flush_RX();
 
     return sim800_result;
 }
@@ -187,58 +98,40 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
 }
 
 /**
- * @brief open tcp connection, connect to mqtt broker
+ * @brief open tcp connection to mqtt broker
  * @param sim_apn simcard apn such "www" for vodafone and "airtelgprs.com" for airtel
  * @param broker broker mqtt address
  * @param port   broker mqtt port
- * @param protocol_name "MQTT" or "MQIsdp" etc
- * @param protocol_version 3 for 3.1.0 or 4 for 3.1.1
- * @param flags TODO add bitfields for user name, password and other flags
- * @param keep_alive kepp alive interval in seconds
- * @param my_id clien id can be arbitary
- * @param user_name user name at broker service
- * @param password password for broker service
  * @retval return 1 if success else 0
  */
-uint8_t SIM800_MQTT_Connect(char *sim_apn,
-                            char *broker,
-                            uint32_t port,
-                            char *protocol_name,
-                            uint8_t protocol_version,
-                            uint8_t flags,
-                            uint32_t keep_alive,
-                            char *my_id,
-                            char *user_name,
-                            char *password)
+uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
     char sim800_reply[32];
     uint8_t sim800_result;
 
-    /**************************************************************** TCP connection start *********************************************************************/
-
     SIM800_UART_Send_String("AT+CIPSHUT\r\n");
-    sim800_result = SIM800_Check_Response("SHUT OK", 1000); /** expected reply "OK" within 1 second "*/
+    sim800_result = SIM800_Check_Response("SHUT OK", 1000);
 
     SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
-    sim800_result = SIM800_Check_Response("OK", 1000); /** expected reply "OK" within 1 second "*/
+    sim800_result = SIM800_Check_Response("OK", 1000);
 
     if (sim800_result)
     {
         /** assemble sim apn */
         SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", sim_apn);
-        sim800_result = SIM800_Check_Response("OK", 3000); /** expected reply "OK" within 1 second "*/
+        sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
     if (sim800_result)
     {
-        SIM800_UART_Send_String("AT+CIICR\r\n");           /** Bring up wireless connection (GPRS or CSD) */
-        sim800_result = SIM800_Check_Response("OK", 3000); /** expected reply "OK" within 10 second */
+        SIM800_UART_Send_String("AT+CIICR\r\n");
+        sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
     if (sim800_result)
     {
-        SIM800_UART_Send_String("AT+CIFSR\r\n"); /** Get local IP address */
-        SIM800_Get_Response(sim800_reply, 3000); /** expected reply "xxx.xxx.xxx.xxx" */
+        SIM800_UART_Send_String("AT+CIFSR\r\n");
+        SIM800_Get_Response(sim800_reply, 3000);
     }
 
     if (sim800_result)
@@ -292,7 +185,7 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message)
  */
 void SIM800_MQTT_Loop()
 {
-    while (1)
+    while (SIM800_UART_Get_Count())
     {
     }
 }
