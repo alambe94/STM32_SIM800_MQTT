@@ -10,6 +10,7 @@
 /** app includes */
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
+#include "MQTTPacket.h"
 
 /**
  * @brief Init peripheral ised by sim800
@@ -124,12 +125,14 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 
     if (sim800_result)
     {
+        /** Bring up wireless connection (GPRS or CSD) */
         SIM800_UART_Send_String("AT+CIICR\r\n");
         sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
     if (sim800_result)
     {
+        /** Get local IP address */
         SIM800_UART_Send_String("AT+CIFSR\r\n");
         SIM800_Get_Response(sim800_reply, 3000);
     }
@@ -148,14 +151,96 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 }
 
 /**
+ * @brief uart read wrapper
+ */
+int transport_getdata(unsigned char *buf, int count)
+{
+    return SIM800_UART_Get_Chars((char *)buf, count, 5000);
+}
+
+/**
+ * @brief send connect packet to broker
+ * @param topic topic to which message will be published
+ * @param mesaage message to published
+ * @param mesaage_len message length
+ * @retval return 1 if success else 0
+ */
+uint8_t SIM800_MQTT_Connect(MQTTPacket_connectData *param)
+{
+    unsigned char buf[128];
+    uint32_t buflen = sizeof(buf);
+
+    uint32_t len = MQTTSerialize_connect(buf, buflen, param);
+
+    SIM800_UART_Send_Bytes((char *)buf, len);
+
+    /* wait for connack */
+    if (MQTTPacket_read(buf, buflen, transport_getdata) == CONNACK)
+    {
+        unsigned char sessionPresent, connack_rc;
+
+        if (MQTTDeserialize_connack(&sessionPresent, &connack_rc, buf, buflen) != 1 || connack_rc != 0)
+        {
+            printf("Unable to connect, return code %d\n", connack_rc);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+/**
+ * @brief send disconnect packet
+ */
+void SIM800_MQTT_Disconnect(void)
+{
+    unsigned char buf[32];
+    uint32_t buflen = sizeof(buf);
+
+    uint32_t len = MQTTSerialize_disconnect(buf, buflen);
+
+    SIM800_UART_Send_Bytes((char *)buf, len);
+}
+
+/**
+ * @brief send ping packet
+ */
+uint8_t SIM800_MQTT_Ping(void)
+{
+    unsigned char buf[32];
+    uint32_t buflen = sizeof(buf);
+
+    uint32_t len = MQTTSerialize_pingreq(buf, buflen);
+
+    SIM800_UART_Send_Bytes((char *)buf, len);
+
+    if (MQTTPacket_read(buf, buflen, transport_getdata) == PINGRESP)
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
  * @brief publish message to a topic
  * @param topic topic to which message will be published
  * @param mesaage message to published
  * @param mesaage_len message length
  * @retval return 1 if success else 0
  */
-uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
+uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, uint8_t dup, uint8_t qos, uint8_t retain, uint32_t mesaage_id)
 {
+    unsigned char buf[128];
+    uint32_t buflen = sizeof(buf);
+
+    MQTTString topicString;
+    topicString.cstring = topic;
+
+    uint32_t len = MQTTSerialize_publish(buf, buflen, dup, qos, retain, mesaage_id, topicString, (unsigned char *)mesaage, mesaage_len);
+
+    SIM800_UART_Send_Bytes((char *)buf, len);
+
     return 1;
 }
 
@@ -168,7 +253,29 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len)
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    return 1;
+    unsigned char buf[128];
+    uint32_t buflen = sizeof(buf);
+
+    MQTTString topicFilters[1];
+    int requestedQoSs[1];
+
+    topicFilters[0].cstring = topic;
+    requestedQoSs[0] = qos;
+
+    uint32_t len = MQTTSerialize_subscribe(buf, buflen, 0, packet_id, 1, topicFilters, requestedQoSs);
+
+    SIM800_UART_Send_Bytes((char *)buf, len);
+
+    if (MQTTPacket_read(buf, buflen, transport_getdata) == SUBACK) /* wait for suback */
+    {
+        unsigned short submsgid;
+        int subcount;
+        int granted_qos;
+
+        return MQTTDeserialize_suback(&submsgid, 1, &subcount, &granted_qos, buf, buflen);
+    }
+
+    return 0;
 }
 
 /**
@@ -189,5 +296,3 @@ void SIM800_MQTT_Loop()
     {
     }
 }
-
-
