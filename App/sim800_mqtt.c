@@ -12,6 +12,24 @@
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
 
+struct PUB_ACK_Status_t
+{
+    uint8_t ACK_Flag;
+    uint16_t Packet_ID;
+} PUB_ACK_Status;
+
+struct CONN_ACK_Status_t
+{
+    uint8_t ACK_Flag;
+    uint8_t RC; /** return code */
+} CONN_ACK_Status;
+
+struct Ping_Status_t
+{
+    uint8_t Ping_Flag;
+    uint8_t RL; /** remaining length */
+} Ping_Status;
+
 /**
  * @brief Init peripheral ised by sim800
  */
@@ -227,8 +245,8 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
  */
 void SIM800_MQTT_Disconnect(void)
 {
-	SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
-	SIM800_UART_Send_Char(0x00);
+    SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
+    SIM800_UART_Send_Char(0x00);
 }
 
 /**
@@ -236,10 +254,10 @@ void SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
-	char ping_res[2];
+    char ping_res[2];
 
-	SIM800_UART_Send_Char(0xC0); /** MQTT ping */
-	SIM800_UART_Send_Char(0x00);
+    SIM800_UART_Send_Char(0xC0); /** MQTT ping */
+    SIM800_UART_Send_Char(0x00);
 
     SIM800_UART_Get_Chars(ping_res, 2, 5000);
 
@@ -270,9 +288,9 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, ui
 
     uint32_t packet_len = 2 + topic_len + mesaage_len;
 
-    if(qos)
+    if (qos)
     {
-    	packet_len+=2;
+        packet_len += 2;
     }
 
     do
@@ -383,7 +401,9 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message)
  */
 void SIM800_MQTT_Loop()
 {
+    char rx_char = 0;
     while (SIM800_UART_Get_Count())
     {
+        rx_char = SIM800_UART_Get_Char(1);
     }
 }
