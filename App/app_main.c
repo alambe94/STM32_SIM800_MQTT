@@ -15,19 +15,11 @@ uint32_t MQTT_Error_Count;
 
 void App_Main(void)
 {
-	MQTTPacket_connectData param = MQTTPacket_connectData_initializer;
-
 	SIM800_Init();
 
-	SIM800_TCP_Connect("airtelgprs.com", "io.adafrute.com", 1883);
+	SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
 
-	param.MQTTVersion = 4; // 3.1.1
-	param.cleansession = 1;
-	param.clientID.cstring = "abcdef";
-	param.keepAliveInterval = 60;
-	param.password.cstring ="1234568";
-	param.username.cstring = "alsaad";
 
-	SIM800_MQTT_Connect(&param);
+	SIM800_MQTT_Publish("alsaad/feeds/Logger", "123", 3, 0, 1, 0, 1);
 }
 

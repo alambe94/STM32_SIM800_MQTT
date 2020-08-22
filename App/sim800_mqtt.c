@@ -11,7 +11,6 @@
 /** app includes */
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
-#include "MQTTPacket.h"
 
 /**
  * @brief Init peripheral ised by sim800
@@ -124,6 +123,8 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
         sim800_result = SIM800_Check_Response("OK", 3000);
     }
 
+    HAL_Delay(3000);
+
     if (sim800_result)
     {
         /** Bring up wireless connection (GPRS or CSD) */
@@ -152,42 +153,73 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 }
 
 /**
- * @brief uart read wrapper
- */
-int transport_getdata(unsigned char *buf, int count)
-{
-    return SIM800_UART_Get_Chars((char *)buf, count, 5000);
-}
-
-/**
  * @brief send connect packet to broker
  * @param topic topic to which message will be published
  * @param mesaage message to published
  * @param mesaage_len message length
  * @retval return 1 if success else 0
  */
-uint8_t SIM800_MQTT_Connect(MQTTPacket_connectData *param)
+uint8_t SIM800_MQTT_Connect(char *protocol_name,
+                            uint8_t protocol_version,
+                            uint8_t flags,
+                            uint32_t keep_alive,
+                            char *my_id,
+                            char *user_name,
+                            char *password)
 {
-    unsigned char buf[128];
-    uint32_t buflen = sizeof(buf);
+    char conn_ack[4];
 
-    uint32_t len = MQTTSerialize_connect(buf, buflen, param);
+    SIM800_UART_Send_Char(0x10); /** MQTT connect fixed header */
 
-    SIM800_UART_Send_Bytes((char *)buf, len);
+    uint8_t protocol_name_len = strlen(protocol_name);
+    uint8_t my_id_len = strlen(my_id);
+    uint8_t user_name_len = strlen(user_name);
+    uint8_t password_len = strlen(password);
 
-    /* wait for connack */
-    if (MQTTPacket_read(buf, buflen, transport_getdata) == CONNACK)
+    uint32_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
+
+    do
     {
-        unsigned char sessionPresent, connack_rc;
-
-        if (MQTTDeserialize_connack(&sessionPresent, &connack_rc, buf, buflen) != 1 || connack_rc != 0)
+        uint8_t len = packet_len % 128;
+        packet_len = packet_len / 128;
+        if (packet_len > 0)
         {
-            printf("Unable to connect, return code %d\n", connack_rc);
-            return 0;
+            len |= 128;
         }
+        SIM800_UART_Send_Char(len);
+    } while (packet_len > 0);
+
+    SIM800_UART_Send_Char(protocol_name_len >> 8);
+    SIM800_UART_Send_Char(protocol_name_len & 0xFF);
+    SIM800_UART_Send_String(protocol_name);
+
+    SIM800_UART_Send_Char(protocol_version);
+
+    SIM800_UART_Send_Char(flags);
+
+    SIM800_UART_Send_Char(keep_alive >> 8);
+    SIM800_UART_Send_Char(keep_alive & 0xFF);
+
+    SIM800_UART_Send_Char(my_id_len >> 8);
+    SIM800_UART_Send_Char(my_id_len & 0xFF);
+    SIM800_UART_Send_String(my_id);
+
+    SIM800_UART_Send_Char(user_name_len >> 8);
+    SIM800_UART_Send_Char(user_name_len & 0xFF);
+    SIM800_UART_Send_String(user_name);
+
+    SIM800_UART_Send_Char(password_len >> 8);
+    SIM800_UART_Send_Char(password_len & 0xFF);
+    SIM800_UART_Send_String(password);
+
+    SIM800_UART_Get_Chars(conn_ack, 4, 5000);
+
+    if (conn_ack[0] == 0x20 && conn_ack[1] == 0x02 && conn_ack[2] == 0x00 && conn_ack[3] == 0x00)
+    {
+        return 1;
     }
 
-    return 1;
+    return 0;
 }
 
 /**
@@ -195,12 +227,6 @@ uint8_t SIM800_MQTT_Connect(MQTTPacket_connectData *param)
  */
 void SIM800_MQTT_Disconnect(void)
 {
-    unsigned char buf[32];
-    uint32_t buflen = sizeof(buf);
-
-    uint32_t len = MQTTSerialize_disconnect(buf, buflen);
-
-    SIM800_UART_Send_Bytes((char *)buf, len);
 }
 
 /**
@@ -208,19 +234,6 @@ void SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
-    unsigned char buf[32];
-    uint32_t buflen = sizeof(buf);
-
-    uint32_t len = MQTTSerialize_pingreq(buf, buflen);
-
-    SIM800_UART_Send_Bytes((char *)buf, len);
-
-    if (MQTTPacket_read(buf, buflen, transport_getdata) == PINGRESP)
-    {
-        return 1;
-    }
-
-    return 0;
 }
 
 /**
@@ -230,28 +243,57 @@ uint8_t SIM800_MQTT_Ping(void)
  * @param mesaage_len message length
  * @retval return 1 if success else 0
  */
-uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, uint8_t dup, uint8_t qos, uint8_t retain, uint32_t mesaage_id)
+uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, uint8_t dup, uint8_t qos, uint8_t retain, uint16_t mesaage_id)
 {
-    unsigned char buf[128];
-    uint32_t buflen = sizeof(buf);
+    char pub_ack[4];
 
-    MQTTString topicString;
-    topicString.cstring = topic;
+    uint8_t topic_len = strlen(topic);
 
-    uint32_t len = MQTTSerialize_publish(buf, buflen, dup, qos, retain, mesaage_id, topicString, (unsigned char *)mesaage, mesaage_len);
+    uint8_t pub = 0x30 | (dup << 4) | (qos << 1) | retain;
 
-    SIM800_UART_Send_Bytes((char *)buf, len);
+    SIM800_UART_Send_Char(pub); /** MQTT publish fixed header */
 
-    if (MQTTPacket_read(buf, buflen, transport_getdata) == PUBACK) /* wait for puback */
+    uint32_t packet_len = 2 + topic_len + mesaage_len;
+
+    do
     {
-        unsigned char packettype;
-        unsigned char dup;
-        unsigned short packetid;
+        uint8_t len = packet_len % 128;
+        packet_len = packet_len / 128;
+        if (packet_len > 0)
+        {
+            len |= 128;
+        }
+        SIM800_UART_Send_Char(len);
+    } while (packet_len > 0);
 
-        return MQTTDeserialize_ack(&packettype, &dup, &packetid, buf, buflen);
+    SIM800_UART_Send_Char(topic_len >> 8);
+    SIM800_UART_Send_Char(topic_len & 0xFF);
+
+    SIM800_UART_Send_String(topic);
+
+    if (qos)
+    {
+        SIM800_UART_Send_Char(mesaage_id >> 8);
+        SIM800_UART_Send_Char(mesaage_id & 0xFF);
     }
 
-    return 0;
+    SIM800_UART_Send_Bytes(mesaage, mesaage_len);
+
+    SIM800_UART_Get_Chars(pub_ack, 4, 5000);
+
+    if (qos)
+    {
+        if (pub_ack[0] == 0x40 && pub_ack[1] == 0x02 && (pub_ack[2] << 8 | pub_ack[3]) == mesaage_id)
+        {
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 /**
@@ -263,29 +305,48 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, ui
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    unsigned char buf[128];
-    uint32_t buflen = sizeof(buf);
+    char sub_ack[5];
 
-    MQTTString topicFilters[1];
-    int requestedQoSs[1];
+    uint8_t topic_len = strlen(topic);
 
-    topicFilters[0].cstring = topic;
-    requestedQoSs[0] = qos;
+    uint32_t packet_len = 2 + 2 + topic_len + 1;
 
-    uint32_t len = MQTTSerialize_subscribe(buf, buflen, 0, packet_id, 1, topicFilters, requestedQoSs);
+    SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
 
-    SIM800_UART_Send_Bytes((char *)buf, len);
-
-    if (MQTTPacket_read(buf, buflen, transport_getdata) == SUBACK) /* wait for suback */
+    do
     {
-        unsigned short submsgid;
-        int subcount;
-        int granted_qos;
+        uint8_t len = packet_len % 128;
+        packet_len = packet_len / 128;
+        if (packet_len > 0)
+        {
+            len |= 128;
+        }
+        SIM800_UART_Send_Char(len);
+    } while (packet_len > 0);
 
-        return MQTTDeserialize_suback(&submsgid, 1, &subcount, &granted_qos, buf, buflen);
+    SIM800_UART_Send_Char(packet_id >> 8);
+    SIM800_UART_Send_Char(packet_id & 0xFF);
+
+    SIM800_UART_Send_Char(topic_len >> 8);
+    SIM800_UART_Send_Char(topic_len & 0xFF);
+
+    SIM800_UART_Send_String(topic);
+
+    SIM800_UART_Send_Char(qos);
+
+    SIM800_UART_Get_Chars(sub_ack, 5, 5000);
+
+    if (sub_ack[0] == 0x90 &&
+        sub_ack[1] == 0x02 &&
+        (sub_ack[2] << 8 | sub_ack[3]) == packet_id &&
+        (sub_ack[4] == 0 || sub_ack[4] == 1 || sub_ack[4] == 2))
+    {
+        return 1;
     }
-
-    return 0;
+    else
+    {
+        return 0;
+    }
 }
 
 /**
