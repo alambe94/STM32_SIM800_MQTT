@@ -227,6 +227,8 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
  */
 void SIM800_MQTT_Disconnect(void)
 {
+	SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
+	SIM800_UART_Send_Char(0x00);
 }
 
 /**
@@ -234,6 +236,19 @@ void SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
+	char ping_res[2];
+
+	SIM800_UART_Send_Char(0xC0); /** MQTT ping */
+	SIM800_UART_Send_Char(0x00);
+
+    SIM800_UART_Get_Chars(ping_res, 2, 5000);
+
+    if (ping_res[0] == 0xD0 && ping_res[1] == 0)
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
@@ -254,6 +269,11 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, ui
     SIM800_UART_Send_Char(pub); /** MQTT publish fixed header */
 
     uint32_t packet_len = 2 + topic_len + mesaage_len;
+
+    if(qos)
+    {
+    	packet_len+=2;
+    }
 
     do
     {

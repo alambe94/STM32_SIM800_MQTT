@@ -17,9 +17,17 @@ void App_Main(void)
 {
 	SIM800_Init();
 
-	SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
-
-
-	SIM800_MQTT_Publish("alsaad/feeds/Logger", "123", 3, 0, 1, 0, 1);
+	if(SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883))
+	{
+		if(SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN"))
+		{
+			for(uint32_t i=0; i<10; i++)
+			{
+				if(SIM800_MQTT_Publish("alsaad/feeds/Logger", "123", 3, 0, 1, 0, i))
+				{
+				}
+			}
+		}
+	}
 }
 

@@ -16,8 +16,8 @@ UART_HandleTypeDef *SIM800_UART = &huart3;
 /** rx ring buffer data reception from sim800 */
 #define RB_STORAGE_SIZE 1500
 static uint8_t RB_Storage[RB_STORAGE_SIZE];
-static uint8_t RB_Read_Index;
-static volatile uint8_t RB_Write_Index;
+static uint32_t RB_Read_Index;
+static volatile uint32_t RB_Write_Index;
 static volatile uint8_t RB_Full_Flag;
 
 /**
@@ -219,7 +219,7 @@ uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t timeout)
 {
     uint32_t tick_now = HAL_GetTick();
     uint32_t tick_timeout = tick_now + timeout;
-    uint16_t rx_chars_cnt = 0;
+    uint32_t rx_chars_cnt = 0;
     int rx_char;
 
     while (tick_now < tick_timeout)
