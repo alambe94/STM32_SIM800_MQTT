@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stddef.h>
 
 /** ST includes */
 #include "main.h"
@@ -241,7 +242,16 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, ui
 
     SIM800_UART_Send_Bytes((char *)buf, len);
 
-    return 1;
+    if (MQTTPacket_read(buf, buflen, transport_getdata) == PUBACK) /* wait for puback */
+    {
+        unsigned char packettype;
+        unsigned char dup;
+        unsigned short packetid;
+
+        return MQTTDeserialize_ack(&packettype, &dup, &packetid, buf, buflen);
+    }
+
+    return 0;
 }
 
 /**
