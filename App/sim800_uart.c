@@ -155,6 +155,16 @@ void SIM800_UART_Send_Bytes(char *data, uint32_t count)
 }
 
 /**
+ * @brief send bytes buffer using dma
+ * @param data input buffer
+ * @param number of chars to send
+ **/
+void SIM800_UART_Send_Bytes_DMA(char *data, uint32_t count)
+{
+HAL_UART_Transmit_DMA(SIM800_UART, data, count);
+}
+
+/**
  * @brief send null terminated string
  * @param data input buffer
  * @param number of chars to send

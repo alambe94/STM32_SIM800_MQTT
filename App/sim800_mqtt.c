@@ -12,30 +12,6 @@
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
 
-struct PUBACK_Status_t
-{
-    uint8_t ACK_Flag;
-    uint16_t Packet_ID;
-} PUBACK_Status;
-
-struct CONNACK_Status_t
-{
-    uint8_t ACK_Flag;
-    uint8_t RC; /** return code */
-} CONNACK_Status;
-
-struct SUBACK_Status_t
-{
-    uint8_t ACK_Flag;
-    uint8_t RC; /** return code */
-} SUBACK_Status;
-
-struct Ping_Status_t
-{
-    uint8_t Ping_Flag;
-    uint8_t RL; /** remaining length */
-} Ping_Status;
-
 enum SIM800_Response_t
 {
     SIM800_RESP_NONE,
@@ -61,8 +37,8 @@ enum SIM800_State_t
     SIM800_TCP_CONNECTED, /** after thismodem is in transparent mode */
     SIM800_MQTT_CONNECTING,
     SIM800_MQTT_CONNECTED,
-    SIM800_PUBLISHING,
-    SIM800_RECEIVING,
+    SIM800_MQTT_PUBLISHING,
+    SIM800_MQTT_RECEIVING,
 } SIM800_State;
 
 typedef enum SIM800_Status_t
@@ -509,7 +485,13 @@ uint8_t SIM800_MQTT_Ping(void)
  * @param mesaage_len message length
  * @retval return 1 if success else 0
  */
-uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, uint8_t dup, uint8_t qos, uint8_t retain, uint16_t mesaage_id)
+uint8_t SIM800_MQTT_Publish(char *topic,
+                            char *mesaage,
+                            uint32_t mesaage_len,
+                            uint8_t dup,
+                            uint8_t qos,
+                            uint8_t retain,
+                            uint16_t mesaage_id)
 {
     uint8_t topic_len = strlen(topic);
 
@@ -546,7 +528,17 @@ uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, ui
         SIM800_UART_Send_Char(mesaage_id & 0xFF);
     }
 
-    SIM800_UART_Send_Bytes(mesaage, mesaage_len);
+    if (mesaage_len > 64)
+    {
+        /** non blocking */
+        SIM800_UART_Send_Bytes_DMA(mesaage, mesaage_len);
+        SIM800_State = SIM800_PUBLISHING;
+    }
+    else
+    {
+        /** blocking */
+        SIM800_UART_Send_Bytes(mesaage, mesaage_len);
+    }
 
     SIM800_Expected_Response = SIM800_RESP_MQTT_PUBACK;
 
@@ -590,6 +582,8 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
     SIM800_UART_Send_Char(qos);
 
     SIM800_Expected_Response = SIM800_RESP_MQTT_SUBACK;
+
+    return 1;
 }
 
 /**
@@ -640,6 +634,11 @@ void SIM800_MQTT_Loop()
         }
         break;
 
+    case SIM800_MQTT_CONNECTED:
+    case SIM800_MQTT_PUBLISHING:
+    case SIM800_MQTT_RECEIVING:
+        break;
+
     default:
         break;
     }
@@ -656,18 +655,27 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message)
 }
 
 /**
- * @brief called when PUBACK is received
- * @param topic message on which ack is received
+ * @brief called when publish packet is sent to sim800 modem using uart dma mode
+ * @note only applicable if tx dma is used
  */
-void SIM800_MQTT_PUBACK_Callback(uin16_t mesaage_id)
+void SIM800_MQTT_Publish_Complete_Callback()
+{
+    SIM800_State = SIM800_MQTT_CONNECTED;
+}
+
+/**
+ * @brief called when PUBACK is received
+ * @param mesaage_id message on which ack is received
+ */
+void SIM800_MQTT_PUBACK_Callback(uint16_t mesaage_id)
 {
 }
 
 /**
  * @brief called when SUBACK is received
- * @param topic message on which ack is received
+ * @param packet_id packet on which ack is received
  */
-void SIM800_MQTT_PUBACK_Callback(uin16_t packet_id)
+void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id)
 {
 }
 

@@ -7,6 +7,7 @@
 void SIM800_UART_Init();
 void SIM800_UART_Send_Char(char data);
 void SIM800_UART_Send_Bytes(char *data, uint32_t count);
+void SIM800_UART_Send_Bytes_DMA(char *data, uint32_t count);
 void SIM800_UART_Send_String(char *str);
 void SIM800_UART_Printf(const char *fmt, ...);
 void SIM800_UART_Flush_RX();
