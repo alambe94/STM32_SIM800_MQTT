@@ -38,7 +38,7 @@ enum SIM800_State_t
     SIM800_RESET_OK,
     SIM800_TCP_CONNECTING,
     SIM800_TCP_CONNECTED, /** after this modem is in transparent mode */
-    SIM800_MQTT_CONNECTING,
+
     SIM800_MQTT_CONNECTED,
 
     SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
@@ -52,6 +52,12 @@ typedef enum SIM800_Status_t
     SIM800_BUSY,
     SIM800_FAILED
 } SIM800_Status_t;
+
+struct SIM800_PUBACK_Data_t
+{
+    uint8_t Flag;
+    uint16_t Message_ID;
+} SIM800_PUBACK_Data;
 
 /**
   * @brief  return ch occurrence in string
@@ -437,16 +443,6 @@ static uint8_t _SIM800_TCP_Connect()
  * @param message_len message length
  * @retval return 1 if success else 0
  */
-struct CONN_Data_t
-{
-    char _Protocol_Name[32];
-    char _My_ID[32];
-    char _User_Name[32];
-    char _Password[32];
-    uint8_t _Protocol_Version;
-    uint8_t _CONN_Flags;
-    uint16_t _Keep_Alive;
-} _CONN_Data;
 uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             uint8_t protocol_version,
                             uint8_t flags,
@@ -455,35 +451,21 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             char *user_name,
                             char *password)
 {
-    if (SIM800_State >= SIM800_TCP_CONNECTED)
+    if (SIM800_State < SIM800_TCP_CONNECTED)
     {
-        strncpy(_CONN_Data._Protocol_Name, protocol_name, sizeof(_CONN_Data._Protocol_Name));
-        strncpy(_CONN_Data._My_ID, my_id, sizeof(_CONN_Data._My_ID));
-        strncpy(_CONN_Data._User_Name, user_name, sizeof(_CONN_Data._User_Name));
-        strncpy(_CONN_Data._Password, password, sizeof(_CONN_Data._Password));
-        _CONN_Data._Protocol_Version = protocol_version;
-        _CONN_Data._CONN_Flags = flags;
-        _CONN_Data._Keep_Alive = keep_alive;
-
-        SIM800_State = SIM800_TCP_CONNECTING;
-
-        return 1;
+        return 0;
     }
 
-    return 0;
-}
-uint8_t _SIM800_MQTT_Connect()
-{
+    uint8_t protocol_name_len = strlen(protocol_name);
+    uint8_t my_id_len = strlen(my_id);
+    uint8_t user_name_len = strlen(user_name);
+    uint8_t password_len = strlen(password);
+
+    uint32_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
+
     SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0x10); /** MQTT connect fixed header */
-
-    uint8_t protocol_name_len = strlen(_CONN_Data._Protocol_Name);
-    uint8_t my_id_len = strlen(_CONN_Data._My_ID);
-    uint8_t user_name_len = strlen(_CONN_Data._User_Name);
-    uint8_t password_len = strlen(_CONN_Data._Password);
-
-    uint32_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
 
     do
     {
@@ -498,26 +480,26 @@ uint8_t _SIM800_MQTT_Connect()
 
     SIM800_UART_Send_Char(protocol_name_len >> 8);
     SIM800_UART_Send_Char(protocol_name_len & 0xFF);
-    SIM800_UART_Send_String(_CONN_Data._Protocol_Name);
+    SIM800_UART_Send_String(protocol_name);
 
-    SIM800_UART_Send_Char(_CONN_Data._Protocol_Version);
+    SIM800_UART_Send_Char(protocol_version);
 
-    SIM800_UART_Send_Char(_CONN_Data._CONN_Flags);
+    SIM800_UART_Send_Char(flags);
 
-    SIM800_UART_Send_Char(_CONN_Data._Keep_Alive >> 8);
-    SIM800_UART_Send_Char(_CONN_Data._Keep_Alive & 0xFF);
+    SIM800_UART_Send_Char(keep_alive >> 8);
+    SIM800_UART_Send_Char(keep_alive & 0xFF);
 
     SIM800_UART_Send_Char(my_id_len >> 8);
     SIM800_UART_Send_Char(my_id_len & 0xFF);
-    SIM800_UART_Send_String(_CONN_Data._My_ID);
+    SIM800_UART_Send_String(my_id);
 
     SIM800_UART_Send_Char(user_name_len >> 8);
     SIM800_UART_Send_Char(user_name_len & 0xFF);
-    SIM800_UART_Send_String(_CONN_Data._User_Name);
+    SIM800_UART_Send_String(user_name);
 
     SIM800_UART_Send_Char(password_len >> 8);
     SIM800_UART_Send_Char(password_len & 0xFF);
-    SIM800_UART_Send_String(_CONN_Data._Password);
+    SIM800_UART_Send_String(password);
 
     SIM800_Expected_Response = SIM800_RESP_MQTT_CONNACK;
 
@@ -768,10 +750,10 @@ void SIM800_MQTT_Ping_Callback()
  * @param topic topic on which message is received
  * @param message received message
  */
-void SIM800_MQTT_Received_Callback(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id)
+void SIM800_MQTT_Received_Callback(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id)
 {
-    extern void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id);
-    APP_SIM800_MQTT_MSG_CB(topic, message, dup, qos, message_id);
+    extern void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id);
+    APP_SIM800_MQTT_MSG_CB(topic, message, mesg_len, dup, qos, message_id);
 }
 
 /************************* ISR ***************************/
@@ -817,12 +799,18 @@ void SIM800_TIM_CMPLT_ISR(void)
     case SIM800_TCP_CONNECTED:
         break;
 
-    case SIM800_MQTT_CONNECTING:
-        break;
-
     case SIM800_MQTT_CONNECTED:
-    case SIM800_MQTT_TRANSMITTING:
     case SIM800_MQTT_RECEIVING:
+        if (SIM800_PUBACK_Data.Flag)
+        {
+            SIM800_PUBACK_Data.Flag = 0;
+            SIM800_UART_Send_Char(0x40); /** PUBACK */
+            SIM800_UART_Send_Char(0x02);
+            SIM800_UART_Send_Char((SIM800_PUBACK_Data.Message_ID >> 8) & 0xFF);
+            SIM800_UART_Send_Char(SIM800_PUBACK_Data.Message_ID & 0xFF);
+        }
+        break;
+    case SIM800_MQTT_TRANSMITTING:
         break;
     }
 }
@@ -865,7 +853,7 @@ void EXTI1_IRQHandler(void)
 
             case SIM800_RESP_MQTT_SUBACK:
                 SIM800_UART_Get_Chars(rx_chars, 5, 5);
-                if (rx_chars[0] == 0x90 && rx_chars[1] == 0x02)
+                if (rx_chars[0] == 0x90 && rx_chars[1] == 0x03)
                 {
                     SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
                     SIM800_Expected_Response = SIM800_RESP_NONE;
@@ -899,7 +887,8 @@ void EXTI1_IRQHandler(void)
                     uint16_t message_id = 0;
 
                     char topic[32] = "";
-                    char msg[32] = "";
+                    /** @warning  large local buffer */
+                    static char msg[1500] = "";
 
                     do
                     {
@@ -913,22 +902,29 @@ void EXTI1_IRQHandler(void)
                     } while ((rx_chars[0] & 128) != 0);
 
                     SIM800_UART_Get_Chars(rx_chars, 2, 5);
-                    topic_len = (rx_chars[1] << 8) | rx_chars[0];
+                    topic_len = (rx_chars[0] << 8) | rx_chars[1];
 
-                    mesg_len = total_len - topic_len;
+                    mesg_len = total_len - topic_len - 2;
 
                     SIM800_UART_Get_Chars(topic, topic_len, 5);
 
                     if (qos)
                     {
                         SIM800_UART_Get_Chars(rx_chars, 2, 5);
-                        message_id = (rx_chars[1] << 8) | rx_chars[0];
+                        message_id = (rx_chars[0] << 8) | rx_chars[1];
                         mesg_len -= 2;
+
+                        SIM800_PUBACK_Data.Flag = 1; /** indicates need to send PUBACK*/
+                        SIM800_PUBACK_Data.Message_ID = message_id;
                     }
 
                     SIM800_UART_Get_Chars(msg, mesg_len, 5);
 
-                    SIM800_MQTT_Received_Callback(topic, msg, dup, qos, message_id);
+                    SIM800_MQTT_Received_Callback(topic, msg, mesg_len, dup, qos, message_id);
+                }
+                else if (rx_chars[0] == '\r') /** check for '\r\nCLOSED\r\n' */
+                {
+                    SIM800_UART_Get_Chars(rx_chars, 5, 5);
                 }
                 break;
 
