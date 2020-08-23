@@ -35,7 +35,6 @@ void SIM800_UART_Init()
     __HAL_UART_ENABLE_IT(SIM800_UART, UART_IT_IDLE);
 }
 
-
 /**
  * @brief flush ring buffer
  */
@@ -161,7 +160,7 @@ void SIM800_UART_Send_Bytes(char *data, uint32_t count)
  **/
 void SIM800_UART_Send_Bytes_DMA(char *data, uint32_t count)
 {
-HAL_UART_Transmit_DMA(SIM800_UART, data, count);
+    HAL_UART_Transmit_DMA(SIM800_UART, (uint8_t *)data, count);
 }
 
 /**
@@ -199,7 +198,7 @@ void SIM800_UART_Printf(const char *fmt, ...)
  */
 uint32_t SIM800_UART_Get_Count(void)
 {
-	return RB_Get_Count();
+    return RB_Get_Count();
 }
 
 /**
@@ -286,3 +285,12 @@ void SIM800_UART_RX_ISR(void)
     }
 }
 
+/**
+ * @brief called when uart tx dma finishes sending
+ *        called from @see HAL_UART_TxCpltCallback in stm32f4xx_it.c
+ **/
+void SIM800_UART_TX_CMPLT_ISR(void)
+{
+    extern void SIM800_MQTT_TX_Complete_Callback(void);
+    SIM800_MQTT_TX_Complete_Callback();
+}

@@ -243,6 +243,13 @@ void USART3_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if(huart == &huart3)
+	{
+	  extern void SIM800_UART_TX_CMPLT_ISR(void);
+	  SIM800_UART_TX_CMPLT_ISR();
+	}
+}
 /* USER CODE END 1 */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
