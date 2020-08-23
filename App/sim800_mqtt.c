@@ -30,54 +30,161 @@ struct Ping_Status_t
     uint8_t RL; /** remaining length */
 } Ping_Status;
 
+enum SIM800_Response_t
+{
+	SIM800_RESP_NONE,
+    SIM800_RESP_ANY,
+	SIM800_RESP_OK,
+	SIM800_RESP_IP,
+	SIM800_RESP_CONNECT,
+	SIM800_RESP_SHUT_OK,
+	SIM800_RESP_SMS_READY,
+	SIM800_RESP_GPRS_READY,
+} SIM800_Expected_Response, SIM800_Received_Response;
+
+enum SIM800_State_t
+{
+    SIM800_IDLE,
+    SIM800_RESETING,
+    SIM800_TCP_CONNECTING,
+    SIM800_TCP_CONNECTED, /** after thismodem is in transparent mode */
+    SIM800_MQTT_CONNECTING,
+    SIM800_MQTT_CONNECTED,
+    SIM800_PUBLISHING,
+    SIM800_RECEIVING
+} SIM800_State;
+
+typedef enum SIM800_Status_t
+{
+    SIM800_SUCCESS,
+    SIM800_BUSY,
+    SIM800_FAILED
+} SIM800_Status_t;
+
+/**
+  * @brief  one of the unused gpio pin interrupt is used to handle SIM800 background task
+  *         it will be software trigger by sim800 uart idle interrupt
+  * @note   set NVIC to 4 bit preemption 0 bit for sub priority
+  */
+void SIM800_Task_Init(void)
+{
+    HAL_NVIC_SetPriority((IRQn_Type)EXTI1_IRQn, 7, 0);
+    HAL_NVIC_EnableIRQ((IRQn_Type)EXTI1_IRQn);
+}
+
+/**
+  * @brief trigger sim800 interrupt
+  */
+void SIM800_Task_Trigger(void)
+{
+    HAL_NVIC_SetPendingIRQ(EXTI1_IRQn);
+}
+
+/**
+ * @brief Init peripheral used by sim800
+ */
+void SIM800_Init(void)
+{
+    /** uart used for comm is configured in cube @see usart.c */
+    SIM800_UART_Init();
+}
+
 /**
  * @brief Init peripheral ised by sim800
  */
-uint8_t SIM800_Init(void)
+SIM800_Status_t SIM800_Reset(void)
 {
-    /** uart used for comm is configured in cube @see usart.c */
+    static SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    uint8_t sim800_result = 0;
+    static uint8_t reset_step = 0;
+    static uint8_t retry = 0;
 
-    HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
-    HAL_Delay(1000);
-    HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
-    HAL_Delay(5000);
+    static uint32_t next_delay = 0;
+    static uint32_t loop_ticks = 0;
 
-    SIM800_UART_Init();
-
-    /** send dummy, so sim800 can auto adjust its baud */
-    SIM800_UART_Send_String("AT\r\n");
-    HAL_Delay(100);
-
-    /** disable echo */
-    SIM800_UART_Send_String("ATE0\r\n");
-    HAL_Delay(100);
-
-    uint8_t lines = 10;
-    while (lines--)
+    if (HAL_GetTick() - loop_ticks > next_delay)
     {
-        sim800_result = SIM800_Check_Response("SMS Ready", 2000);
-        if (sim800_result)
+        switch (reset_step)
         {
+        case 0:
+            HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
+            sim800_result = SIM800_BUSY;
+            reset_step = 1;
+            next_delay = 1000;
+            break;
+
+        case 1:
+            HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
+            reset_step = 2;
+            next_delay = 5000;
+            break;
+
+        case 2:
+            /** send dummy, so sim800 can auto adjust its baud */
+            SIM800_UART_Send_String("AT\r\n");
+            reset_step = 3;
+            next_delay = 100;
+            break;
+
+        case 3:
+            /** disable echo */
+            SIM800_UART_Send_String("ATE0\r\n");
+            reset_step = 4;
+            next_delay = 100;
+            break;
+
+        case 4:
+            /** wait SMS Ready flag */
+            if (SIM800_Received_Response == SIM800_RESP_SMS_READY)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                reset_step = 5;
+                next_delay = 100;
+                retry = 0;
+            }
+            {
+                next_delay = 2000;
+                SIM800_Expected_Response = SIM800_RESP_SMS_READY;
+                retry++;
+                if (retry == 10)
+                {
+                    sim800_result = SIM800_FAILED; /** failed */
+                }
+            }
+            break;
+
+        case 5:
+            /** wait GPRS Service’s status */
+            if (SIM800_Received_Response == SIM800_RESP_GPRS_READY)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                reset_step = 6;
+                retry = 0;
+                next_delay = 1000;
+            }
+            {
+                SIM800_UART_Send_String("AT+CGATT?\r\n");
+                SIM800_Expected_Response = SIM800_RESP_GPRS_READY;
+                next_delay = 3000;
+                retry++;
+                if (retry == 20)
+                {
+                    sim800_result = SIM800_FAILED; /** failed */
+                }
+            }
+            break;
+
+        case 6:
+            SIM800_UART_Flush_RX();
+            reset_step = 0;
+            retry = 0;
+            sim800_result = SIM800_SUCCESS;
+            break;
+
+        default:
             break;
         }
     }
-
-    lines = 20;
-    while (lines--)
-    {
-        SIM800_UART_Send_String("AT+CGATT?\r\n"); /** GPRS Service’s status */
-        sim800_result = SIM800_Check_Response("+CGATT: 1", 1000);
-        if (sim800_result)
-        {
-            break;
-        }
-        sim800_result = SIM800_Check_Response("OK", 1000);
-        HAL_Delay(3000);
-    }
-
-    SIM800_UART_Flush_RX();
 
     return sim800_result;
 }
@@ -125,46 +232,123 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
-    char sim800_reply[32];
-    uint8_t sim800_result;
+    static SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    SIM800_UART_Send_String("AT+CIPSHUT\r\n");
-    sim800_result = SIM800_Check_Response("SHUT OK", 1000);
+    static uint8_t tcp_step = 0;
 
-    SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
-    sim800_result = SIM800_Check_Response("OK", 1000);
+    static uint32_t next_delay = 0;
+    static uint32_t loop_ticks = 0;
 
-    if (sim800_result)
+    if (HAL_GetTick() - loop_ticks > next_delay)
     {
-        /** assemble sim apn */
-        SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", sim_apn);
-        sim800_result = SIM800_Check_Response("OK", 3000);
-    }
+        switch (tcp_step)
+        {
+        case 0:
+            SIM800_UART_Send_String("AT+CIPSHUT\r\n");
+            sim800_result = SIM800_BUSY;
+            next_delay = 10;
+            tcp_step = 1;
+            break;
 
-    HAL_Delay(3000);
+        case 1:
+            /** check response of previous cmd (AT+CIPSHUT) */
+            if (SIM800_Received_Response == SIM800_RESP_SHUT_OK)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
+                next_delay = 10;
+                tcp_step = 2;
+            }
+            else
+            {
+                sim800_result = SIM800_FAILED;
+            }
+            break;
 
-    if (sim800_result)
-    {
-        /** Bring up wireless connection (GPRS or CSD) */
-        SIM800_UART_Send_String("AT+CIICR\r\n");
-        sim800_result = SIM800_Check_Response("OK", 3000);
-    }
+        case 2:
+            /** check response of previous cmd (AT+CIPMODE=1) */
+            if (SIM800_Received_Response == SIM800_RESP_OK)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                /** assemble sim apn */
+                SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", sim_apn);
+                next_delay = 3000;
+                tcp_step = 3;
+            }
+            else
+            {
+                sim800_result = SIM800_FAILED;
+            }
+            break;
 
-    if (sim800_result)
-    {
-        /** Get local IP address */
-        SIM800_UART_Send_String("AT+CIFSR\r\n");
-        SIM800_Get_Response(sim800_reply, 3000);
-    }
+        case 3:
+            /** check response of previous cmd (AT+CSTT=) */
+            if (SIM800_Received_Response == SIM800_RESP_OK)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                /** Bring up wireless connection (GPRS or CSD) */
+                SIM800_UART_Send_String("AT+CIICR\r\n");
+                next_delay = 100;
+                tcp_step = 4;
+            }
+            else
+            {
+                sim800_result = SIM800_FAILED;
+            }
+            break;
 
-    if (sim800_result)
-    {
-        /** assemble server ip and port */
-        SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
-                           broker,
-                           port);
-        sim800_result = SIM800_Check_Response("OK", 5000); /** expected reply "OK" and "CONNECT OK" within 10 second */
-        sim800_result = SIM800_Check_Response("CONNECT", 5000);
+        case 4:
+            /** check response of previous cmd (AT+CIICR) */
+            if (SIM800_Received_Response == SIM800_RESP_OK)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                /** Get local IP address */
+                SIM800_UART_Send_String("AT+CIFSR\r\n");
+                next_delay = 100;
+                tcp_step = 5;
+            }
+            else
+            {
+                sim800_result = SIM800_FAILED;
+            }
+            break;
+
+        case 5:
+            /** check response of previous cmd (AT+CIFSR) */
+            if (SIM800_Received_Response == SIM800_RESP_IP)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                /** assemble server ip and port */
+                SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
+                                   broker,
+                                   port);
+                next_delay = 100;
+                tcp_step = 6;
+            }
+            else
+            {
+                sim800_result = SIM800_FAILED;
+            }
+            break;
+
+        case 6:
+            /** check response of previous cmd (AT+CIPSTART) */
+            if (SIM800_Received_Response == SIM800_RESP_CONNECT)
+            {
+            	SIM800_Received_Response = SIM800_RESP_NONE;
+                sim800_result = SIM800_SUCCESS;
+                next_delay = 100;
+                tcp_step = 0;
+            }
+            else
+            {
+                sim800_result = SIM800_FAILED;
+            }
+            break;
+
+        default:
+            break;
+        }
     }
 
     return sim800_result;
@@ -401,9 +585,39 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message)
  */
 void SIM800_MQTT_Loop()
 {
-    char rx_char = 0;
-    while (SIM800_UART_Get_Count())
+    SIM800_Status_t sim800_result;
+
+    switch (SIM800_State)
     {
-        rx_char = SIM800_UART_Get_Char(1);
+    case SIM800_IDLE:
+        SIM800_State = SIM800_RESETING;
+        SIM800_Init();
+        break;
+
+    case SIM800_RESETING:
+        sim800_result = SIM800_Reset();
+        if (sim800_result == SIM800_SUCCESS)
+        {
+            SIM800_State = SIM800_TCP_CONNECTING;
+        }
+        else if (sim800_result == SIM800_FAILED)
+        {
+            SIM800_State = SIM800_IDLE;
+        }
+
+    case SIM800_TCP_CONNECTING:
+        SIM800_TCP_Connect("", "", 123);
+
+    default:
+        break;
     }
+}
+
+/************************* ISR callbacks ***************************/
+
+/**
+  * @brief  This function handles External line 0 interrupt request.
+  */
+void EXTI1_IRQHandler(void)
+{
 }

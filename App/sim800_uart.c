@@ -9,6 +9,7 @@
 
 /** app includes */
 #include "sim800_uart.h"
+#include "sim800_mqtt.h"
 
 /** uart used from comm with sim800 */
 UART_HandleTypeDef *SIM800_UART = &huart3;
@@ -269,6 +270,9 @@ void SIM800_UART_RX_ISR(void)
         RB_Write_Index = RB_STORAGE_SIZE - SIM800_UART->hdmarx->Instance->NDTR;
 
         RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
+
+        /** start sim800 task */
+        SIM800_Task_Trigger();
     }
 }
 

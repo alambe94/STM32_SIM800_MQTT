@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
-uint8_t SIM800_Init(void);
+void SIM800_Init(void);
+
+void SIM800_Task_Trigger(void);
 
 void SIM800_MQTT_Disconnect(void);
 
