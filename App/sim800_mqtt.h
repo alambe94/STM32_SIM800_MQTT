@@ -5,21 +5,23 @@
 
 void SIM800_Init(void);
 
-void SIM800_Task_Trigger(void);
+void SIM800_RX_Task_Trigger(void);
 
 void SIM800_MQTT_Disconnect(void);
+
+uint8_t SIM800_Is_Connected();
 
 uint8_t SIM800_MQTT_Ping(void);
 
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port);
 
 uint8_t SIM800_MQTT_Connect(char *protocol_name,
-        uint8_t protocol_version,
-        uint8_t flags,
-        uint32_t keep_alive,
-        char *my_id,
-        char *user_name,
-        char *password);
+                            uint8_t protocol_version,
+                            uint8_t flags,
+                            uint16_t keep_alive,
+                            char *my_id,
+                            char *user_name,
+                            char *password);
 
 uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 

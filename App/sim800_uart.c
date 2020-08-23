@@ -280,8 +280,8 @@ void SIM800_UART_RX_ISR(void)
 
         RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
 
-        /** start sim800 task */
-        SIM800_Task_Trigger();
+        /** start sim800 rx task */
+        SIM800_RX_Task_Trigger();
     }
 }
 
