@@ -150,7 +150,7 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
 /**
  * @brief reset sim800
  */
-SIM800_Status_t SIM800_Reset(void)
+uint8_t SIM800_Reset(void)
 {
     if (SIM800_State == SIM800_IDLE)
     {
@@ -680,30 +680,17 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
 void SIM800_Reset_complete_Callback(SIM800_Status_t status)
 {
+    if (status == SIM800_SUCCESS)
+    {
+        SIM800_State = SIM800_RESET_OK;
+    }
 }
 
 void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
 {
-}
-
-/**
- * @brief called when message is received TODO
- * @param topic topic on which message is received
- * @param message received message
- */
-void SIM800_MQTT_Received_Callback(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id)
-{
-}
-
-/**
- * @brief called when sim800 modem using uart dma mode, @see SIM800_UART_TX_CMPLT_ISR
- * @note only applicable if tx dma is used
- */
-void SIM800_MQTT_TX_Complete_Callback(void)
-{
-    if (SIM800_State == SIM800_MQTT_TRANSMITTING)
+    if (status == SIM800_SUCCESS)
     {
-        SIM800_State = SIM800_MQTT_RECEIVING;
+        SIM800_State = SIM800_TCP_CONNECTED;
     }
 }
 
@@ -747,6 +734,15 @@ void SIM800_MQTT_Ping_Callback()
 {
 }
 
+/**
+ * @brief called when message is received TODO
+ * @param topic topic on which message is received
+ * @param message received message
+ */
+void SIM800_MQTT_Received_Callback(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id)
+{
+}
+
 /************************* ISR ***************************/
 
 /**
@@ -762,9 +758,6 @@ void SIM800_TIM_CMPLT_ISR(void)
     case SIM800_IDLE:
         break;
 
-    case SIM800_RESET_OK:
-        break;
-
     case SIM800_RESETING:
         sim800_result = _SIM800_Reset();
         if (sim800_result == SIM800_SUCCESS || sim800_result == SIM800_FAILED)
@@ -774,6 +767,9 @@ void SIM800_TIM_CMPLT_ISR(void)
         else if (sim800_result == SIM800_BUSY)
         {
         }
+        break;
+
+    case SIM800_RESET_OK:
         break;
 
     case SIM800_TCP_CONNECTING:
@@ -986,5 +982,17 @@ void EXTI1_IRQHandler(void)
         case SIM800_RESP_MQTT_PINGACK:
             break;
         }
+    }
+}
+
+/**
+ * @brief called when sim800 modem using uart dma mode, @see SIM800_UART_TX_CMPLT_ISR
+ * @note only applicable if tx dma is used
+ */
+void SIM800_MQTT_TX_Complete_Callback(void)
+{
+    if (SIM800_State == SIM800_MQTT_TRANSMITTING)
+    {
+        SIM800_State = SIM800_MQTT_RECEIVING;
     }
 }

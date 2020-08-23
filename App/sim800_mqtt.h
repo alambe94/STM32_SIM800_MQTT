@@ -5,6 +5,8 @@
 
 void SIM800_Init(void);
 
+uint8_t SIM800_Reset(void);
+
 void SIM800_RX_Task_Trigger(void);
 
 void SIM800_MQTT_Disconnect(void);
