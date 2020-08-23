@@ -35,11 +35,13 @@ enum SIM800_State_t
     SIM800_IDLE,
     SIM800_RESETING,
     SIM800_TCP_CONNECTING,
-    SIM800_TCP_CONNECTED, /** after thismodem is in transparent mode */
+    SIM800_TCP_CONNECTED, /** after this modem is in transparent mode */
     SIM800_MQTT_CONNECTING,
     SIM800_MQTT_CONNECTED,
-    SIM800_MQTT_TRANSMITTING,
+
+    SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
     SIM800_MQTT_RECEIVING,
+
 } SIM800_State;
 
 typedef enum SIM800_Status_t
@@ -92,6 +94,8 @@ void SIM800_Init(void)
 {
     /** uart used for comm is configured in cube @see usart.c */
     SIM800_UART_Init();
+
+    SIM800_Task_Init();
 }
 
 /**
@@ -439,6 +443,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
     SIM800_UART_Send_String(password);
 
     SIM800_Expected_Response = SIM800_RESP_MQTT_CONNACK;
+
     SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
 
     return 1;
@@ -614,7 +619,7 @@ void SIM800_MQTT_Loop()
         }
 
     case SIM800_TCP_CONNECTING:
-        sim800_result = SIM800_TCP_Connect("", "", 123);
+        sim800_result = SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
         if (sim800_result == SIM800_SUCCESS)
         {
             SIM800_State = SIM800_MQTT_CONNECTING;
@@ -625,7 +630,7 @@ void SIM800_MQTT_Loop()
         }
 
     case SIM800_MQTT_CONNECTING:
-        sim800_result = SIM800_MQTT_Connect("", 4, 0xC2, 60, "", "", "");
+        sim800_result = SIM800_MQTT_Connect("MQTT", 4, 0xC2, 60, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QNs");
         /** SIM800_State = SIM800_MQTT_CONNECTED is set in callback if connection is successful
          *  else SIM800_State = SIM800_IDLE @see SIM800_MQTT_CONNACK_Callback */
 
@@ -655,7 +660,7 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message, uint8_t dup, uint
 }
 
 /**
- * @brief called when publish packet is sent to sim800 modem using uart dma mode
+ * @brief called when publish packet is sent to sim800 modem using uart dma mode, @see SIM800_UART_TX_CMPLT_ISR
  * @note only applicable if tx dma is used
  */
 void SIM800_MQTT_TX_Complete_Callback(void)
@@ -708,7 +713,7 @@ void SIM800_MQTT_Ping_Callback()
 
 /************************* ISR ***************************/
 /**
-  * @brief trigger software in sim800 uart idle isr
+  * @brief triggered by software in sim800 uart idle isr
   */
 void EXTI1_IRQHandler(void)
 {
@@ -762,6 +767,7 @@ void EXTI1_IRQHandler(void)
             break;
 
         case SIM800_RESP_NONE:
+
             SIM800_UART_Get_Chars(rx_chars, 1, 5);
 
             if ((rx_chars[0] & 0x30) == 0x30)
