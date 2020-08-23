@@ -648,7 +648,7 @@ void SIM800_MQTT_Loop()
  * @param topic topic on which message is received
  * @param message received message
  */
-void SIM800_MQTT_Received_Callback(char *topic, char *message)
+void SIM800_MQTT_Received_Callback(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id)
 {
 }
 
@@ -763,20 +763,41 @@ void EXTI1_IRQHandler(void)
 
                 uint32_t multiplier = 1;
                 uint32_t total_len = 0;
+                uint32_t mesg_len = 0;
+                uint16_t topic_len = 0;
+                uint16_t mesaage_id = 0;
+
+                char topic[32] = "";
+                char msg[32] = "";
+
                 do
                 {
-                	SIM800_UART_Get_Chars(rx_chars, 1, 5);
-                	total_len += (rx_chars[0] & 127) * multiplier;
+                    SIM800_UART_Get_Chars(rx_chars, 1, 5);
+                    total_len += (rx_chars[0] & 127) * multiplier;
                     multiplier *= 128;
                     if (multiplier > 128 * 128 * 128)
                     {
-                        // error
+                        break;
                     }
                 } while ((rx_chars[0] & 128) != 0);
 
+                SIM800_UART_Get_Chars(rx_chars, 2, 5);
+                topic_len = (rx_chars[1] << 8) | rx_chars[0];
+
+                mesg_len = topic_len - topic_len;
+
+                SIM800_UART_Get_Chars(topic, topic_len, 5);
+
                 if (qos)
                 {
+                    SIM800_UART_Get_Chars(rx_chars, 2, 5);
+                    mesaage_id = (rx_chars[1] << 8) | rx_chars[0];
+                    mesg_len -= 2;
                 }
+
+                SIM800_UART_Get_Chars(msg, mesg_len, 5);
+
+                SIM800_MQTT_Received_Callback(topic, msg, dup, qos, mesaage_id);
             }
             break;
 
