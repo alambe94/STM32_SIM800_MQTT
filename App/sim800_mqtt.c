@@ -626,7 +626,9 @@ void SIM800_MQTT_Loop()
 
     case SIM800_MQTT_CONNECTING:
         sim800_result = SIM800_MQTT_Connect("", 4, 0xC2, 60, "", "", "");
-        SIM800_State = SIM800_MQTT_CONNECTED;
+        /** SIM800_State = SIM800_MQTT_CONNECTED is set in callback if connection is successful
+         *  else SIM800_State = SIM800_IDLE @see SIM800_MQTT_CONNACK_Callback */
+
         break;
 
     case SIM800_MQTT_CONNECTED:
@@ -670,6 +672,14 @@ void SIM800_MQTT_TX_Complete_Callback(void)
  */
 void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
+	if(code == 0)
+	{
+		SIM800_State = SIM800_MQTT_CONNECTED;
+	}
+	else
+	{
+		SIM800_State = SIM800_IDLE;
+	}
 }
 
 /**
@@ -712,10 +722,7 @@ void EXTI1_IRQHandler(void)
         case SIM800_RESP_MQTT_CONNACK:
             SIM800_UART_Get_Chars(rx_chars, 4, 5);
             {
-                if (rx_chars[0] == 0x20 &&
-                    rx_chars[1] == 0x02 &&
-                    rx_chars[2] == 0x00 &&
-                    rx_chars[3] == 0x00)
+                if (rx_chars[0] == 0x20 && rx_chars[1] == 0x02)
                 {
                     SIM800_Received_Response = SIM800_RESP_MQTT_CONNACK;
                     SIM800_Expected_Response = SIM800_RESP_NONE;
@@ -756,6 +763,7 @@ void EXTI1_IRQHandler(void)
 
         case SIM800_RESP_NONE:
             SIM800_UART_Get_Chars(rx_chars, 1, 5);
+
             if ((rx_chars[0] & 0x30) == 0x30)
             {
                 uint8_t qos = (rx_chars[0] >> 1) & 0x03;
@@ -784,7 +792,7 @@ void EXTI1_IRQHandler(void)
                 SIM800_UART_Get_Chars(rx_chars, 2, 5);
                 topic_len = (rx_chars[1] << 8) | rx_chars[0];
 
-                mesg_len = topic_len - topic_len;
+                mesg_len = total_len - topic_len;
 
                 SIM800_UART_Get_Chars(topic, topic_len, 5);
 
@@ -847,6 +855,7 @@ void EXTI1_IRQHandler(void)
                 SIM800_Expected_Response = SIM800_RESP_NONE;
             }
             break;
+
         case SIM800_RESP_SHUT_OK:
             if (SIM800_Check_Response("SHUT OK", 5))
             {
@@ -854,6 +863,7 @@ void EXTI1_IRQHandler(void)
                 SIM800_Expected_Response = SIM800_RESP_NONE;
             }
             break;
+
         case SIM800_RESP_IP:
             if (SIM800_Get_Response(line, 5))
             {
@@ -864,6 +874,7 @@ void EXTI1_IRQHandler(void)
                 }
             }
             break;
+
         case SIM800_RESP_CONNECT:
             if (SIM800_Check_Response("OK", 5))
             {
