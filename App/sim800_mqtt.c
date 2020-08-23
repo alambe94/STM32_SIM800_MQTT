@@ -431,8 +431,8 @@ static uint8_t _SIM800_TCP_Connect()
 /**
  * @brief send connect packet to broker
  * @param topic topic to which message will be published
- * @param mesaage message to published
- * @param mesaage_len message length
+ * @param message message to published
+ * @param message_len message length
  * @retval return 1 if success else 0
  */
 struct CONN_Data_t
@@ -565,17 +565,17 @@ uint8_t SIM800_MQTT_Ping(void)
 /**
  * @brief publish message to a topic
  * @param topic topic to which message will be published
- * @param mesaage message to published
- * @param mesaage_len message length
+ * @param message message to published
+ * @param message_len message length
  * @retval return 1 if success else 0
  */
 uint8_t SIM800_MQTT_Publish(char *topic,
-                            char *mesaage,
-                            uint32_t mesaage_len,
+                            char *message,
+                            uint32_t message_len,
                             uint8_t dup,
                             uint8_t qos,
                             uint8_t retain,
-                            uint16_t mesaage_id)
+                            uint16_t message_id)
 {
     uint8_t topic_len = strlen(topic);
 
@@ -585,7 +585,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     SIM800_UART_Send_Char(pub); /** MQTT publish fixed header */
 
-    uint32_t packet_len = 2 + topic_len + mesaage_len;
+    uint32_t packet_len = 2 + topic_len + message_len;
 
     if (qos)
     {
@@ -610,19 +610,19 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     if (qos)
     {
-        SIM800_UART_Send_Char(mesaage_id >> 8);
-        SIM800_UART_Send_Char(mesaage_id & 0xFF);
+        SIM800_UART_Send_Char(message_id >> 8);
+        SIM800_UART_Send_Char(message_id & 0xFF);
     }
 
-    if (mesaage_len > 64)
+    if (message_len > 64)
     {
         /** non blocking, SIM800_MQTT_TRANSMITTING will be cleared in uart tx dma isr */
-        SIM800_UART_Send_Bytes_DMA(mesaage, mesaage_len);
+        SIM800_UART_Send_Bytes_DMA(message, message_len);
     }
     else
     {
         /** blocking */
-        SIM800_UART_Send_Bytes(mesaage, mesaage_len);
+        SIM800_UART_Send_Bytes(message, message_len);
         SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
     }
 
@@ -680,17 +680,33 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
 void SIM800_Reset_complete_Callback(SIM800_Status_t status)
 {
+	extern void APP_SIM800_Reset_OK_CB(uint8_t reset_ok);
+
     if (status == SIM800_SUCCESS)
     {
         SIM800_State = SIM800_RESET_OK;
+        APP_SIM800_Reset_OK_CB(1);
+    }
+    else
+    {
+        // failed
+    	APP_SIM800_Reset_OK_CB(0);
     }
 }
 
 void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
 {
+	extern void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok);
+
     if (status == SIM800_SUCCESS)
     {
         SIM800_State = SIM800_TCP_CONNECTED;
+        APP_SIM800_TCP_CONN_OK_CB(1);
+    }
+    else
+    {
+        // failed
+    	APP_SIM800_TCP_CONN_OK_CB(0);
     }
 }
 
@@ -700,22 +716,28 @@ void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
  */
 void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
+	extern void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok);
+
     if (code == 0)
     {
         SIM800_State = SIM800_MQTT_CONNECTED;
+        APP_SIM800_MQTT_CONN_OK_CB(1);
     }
     else
     {
         SIM800_State = SIM800_IDLE;
+        APP_SIM800_MQTT_CONN_OK_CB(0);
     }
 }
 
 /**
  * @brief called when PUBACK is received
- * @param mesaage_id message on which ack is received
+ * @param message_id message on which ack is received
  */
-void SIM800_MQTT_PUBACK_Callback(uint16_t mesaage_id)
+void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
 {
+	extern void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id);
+	APP_SIM800_MQTT_PUBACK_CB(message_id);
 }
 
 /**
@@ -725,6 +747,8 @@ void SIM800_MQTT_PUBACK_Callback(uint16_t mesaage_id)
  */
 void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
 {
+	extern void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos);
+	APP_SIM800_MQTT_SUBACK_CB(packet_id, qos);
 }
 
 /**
@@ -732,6 +756,8 @@ void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
  */
 void SIM800_MQTT_Ping_Callback()
 {
+	extern void APP_SIM800_MQTT_Ping_CB();
+	void APP_SIM800_MQTT_Ping_CB();
 }
 
 /**
@@ -741,6 +767,8 @@ void SIM800_MQTT_Ping_Callback()
  */
 void SIM800_MQTT_Received_Callback(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id)
 {
+	extern void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint8_t dup, uint8_t qos, uint8_t message_id);
+	APP_SIM800_MQTT_MSG_CB(topic, message, dup, qos, message_id);
 }
 
 /************************* ISR ***************************/
@@ -863,7 +891,7 @@ void EXTI1_IRQHandler(void)
                 uint32_t total_len = 0;
                 uint32_t mesg_len = 0;
                 uint16_t topic_len = 0;
-                uint16_t mesaage_id = 0;
+                uint16_t message_id = 0;
 
                 char topic[32] = "";
                 char msg[32] = "";
@@ -889,13 +917,13 @@ void EXTI1_IRQHandler(void)
                 if (qos)
                 {
                     SIM800_UART_Get_Chars(rx_chars, 2, 5);
-                    mesaage_id = (rx_chars[1] << 8) | rx_chars[0];
+                    message_id = (rx_chars[1] << 8) | rx_chars[0];
                     mesg_len -= 2;
                 }
 
                 SIM800_UART_Get_Chars(msg, mesg_len, 5);
 
-                SIM800_MQTT_Received_Callback(topic, msg, dup, qos, mesaage_id);
+                SIM800_MQTT_Received_Callback(topic, msg, dup, qos, message_id);
             }
             break;
 

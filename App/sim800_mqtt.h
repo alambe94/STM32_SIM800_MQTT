@@ -29,7 +29,7 @@ uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 
 uint8_t SIM800_Check_Response(char *buff, uint32_t timeout);
 
-uint8_t SIM800_MQTT_Publish(char *topic, char *mesaage, uint32_t mesaage_len, uint8_t dup, uint8_t qos, uint8_t retain, uint16_t mesaage_id);
+uint8_t SIM800_MQTT_Publish(char *topic, char *message, uint32_t  message_len, uint8_t dup, uint8_t qos, uint8_t retain, uint16_t  message_id);
 
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos);
 
