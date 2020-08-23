@@ -262,8 +262,8 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   if(huart == &huart3)
 	{
-	  extern void SIM800_TIM_CMPLT_ISR(void);
-	  SIM800_TIM_CMPLT_ISR();
+	  extern void SIM800_UART_TX_CMPLT_ISR(void);
+	  SIM800_UART_TX_CMPLT_ISR();
 	}
 }
 
@@ -271,8 +271,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim == &htim14)
 	{
-	  extern void SIM800_UART_TX_CMPLT_ISR(void);
-	  SIM800_UART_TX_CMPLT_ISR();
+	  extern void SIM800_TIM_CMPLT_ISR(void);
+	  SIM800_TIM_CMPLT_ISR();
 	}
 }
 /* USER CODE END 1 */
