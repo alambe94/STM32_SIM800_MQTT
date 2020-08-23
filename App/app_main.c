@@ -65,7 +65,7 @@ void App_Main(void)
 	SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 	while(!MQTT_Flag);
 
-	SIM800_MQTT_Subscribe("alsaad/feeds/abcd", 45, 1);
+	SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
 	while(!SUB_Flag);
 
 	for (uint32_t i = 0; i < 1024; i++)
@@ -75,14 +75,14 @@ void App_Main(void)
 
 	for (uint32_t i = 0; i < 10; i++)
 	{
-		//if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 1404, 0, 1, 0, i))
-//		{
-//			HAL_Delay(500);
-//		}
-//		else
-//		{
-//			break;
-//		}
+		if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 1000, 0, 1, 0, i))
+		{
+			HAL_Delay(1000);
+		}
+		else
+		{
+			break;
+		}
 	}
 
 	while(1);

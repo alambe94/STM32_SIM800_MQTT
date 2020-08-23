@@ -924,7 +924,13 @@ void EXTI1_IRQHandler(void)
                 }
                 else if (rx_chars[0] == '\r') /** check for '\r\nCLOSED\r\n' */
                 {
-                    SIM800_UART_Get_Chars(rx_chars, 5, 5);
+                    SIM800_UART_Get_Chars(rx_chars, 9, 5);
+                    if (strstr(rx_chars, "\nCLOSED\r\n") != NULL)
+                    {
+                    	/** TCP connection closed due to inactivity */
+                    	/** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
+                    	SIM800_State = SIM800_RESET_OK;
+                    }
                 }
                 break;
 
