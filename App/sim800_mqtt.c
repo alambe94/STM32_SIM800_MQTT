@@ -604,10 +604,13 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     SIM800_UART_Send_String(topic);
 
+    SIM800_Expected_Response = SIM800_RESP_NONE;
+
     if (qos)
     {
         SIM800_UART_Send_Char(message_id >> 8);
         SIM800_UART_Send_Char(message_id & 0xFF);
+        SIM800_Expected_Response = SIM800_RESP_MQTT_PUBACK;
     }
 
     if (message_len > 64)
@@ -621,8 +624,6 @@ uint8_t SIM800_MQTT_Publish(char *topic,
         SIM800_UART_Send_Bytes(message, message_len);
         SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
     }
-
-    SIM800_Expected_Response = SIM800_RESP_MQTT_PUBACK;
 
     return 1;
 }
@@ -982,7 +983,7 @@ void EXTI1_IRQHandler(void)
             {
             case SIM800_RESP_NONE:
                 /** in AT mode when expected response is none and something is received on uart handle those here*/
-            	SIM800_Get_Response(line, 5);
+            	SIM800_UART_Get_Char(0);
                 break;
 
             case SIM800_RESP_ANY:
