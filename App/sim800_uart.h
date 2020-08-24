@@ -15,6 +15,6 @@ void SIM800_UART_Flush_RX();
 uint32_t SIM800_UART_Get_Count(void);
 int SIM800_UART_Get_Char(uint32_t timeout);
 uint32_t SIM800_UART_Get_Chars(char *buffer, uint32_t count, uint32_t timeout);
-uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t timeout);
+uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t buff_size, uint32_t timeout);
 
 #endif /* SIM800_UART_H_ */

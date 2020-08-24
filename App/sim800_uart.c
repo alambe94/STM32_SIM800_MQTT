@@ -109,7 +109,7 @@ static uint32_t RB_Get_Chars(char *buff, uint32_t cnt, uint32_t timeout)
     uint32_t tick_timeout = tick_now + timeout;
     uint32_t count = cnt;
 
-    while (RB_Get_Count() < cnt && (tick_now < tick_timeout))
+    while (RB_Get_Count() < cnt && (tick_now <= tick_timeout))
     {
         tick_now = HAL_GetTick();
     }
@@ -222,17 +222,18 @@ uint32_t SIM800_UART_Get_Chars(char *buffer, uint32_t count, uint32_t timeout)
 
 /**
  * @brief get chars upto '\r' or max upto timeout
- * @param timeout
+ * @param buff_size max count that can be written to buffer before '\r' is found
+ * @param timeout maximum number of millisecond to wait before '\r' is found
  * @retval number chars received
  */
-uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t timeout)
+uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t buff_size, uint32_t timeout)
 {
     uint32_t tick_now = HAL_GetTick();
     uint32_t tick_timeout = tick_now + timeout;
     uint32_t rx_chars_cnt = 0;
     int rx_char;
 
-    while (tick_now < tick_timeout)
+    while (tick_now <= tick_timeout && rx_chars_cnt < buff_size)
     {
         tick_now = HAL_GetTick();
         rx_char = SIM800_UART_Get_Char(1);
@@ -278,7 +279,7 @@ void SIM800_UART_RX_ISR(void)
         /** need to update Write_Index manually */
         RB_Write_Index = RB_STORAGE_SIZE - SIM800_UART->hdmarx->Instance->NDTR;
 
-        RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
+        //RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
 
         /** start sim800 rx task */
         SIM800_RX_Task_Trigger();

@@ -41,7 +41,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             char *user_name,
                             char *password);
 
-uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
+uint32_t SIM800_Get_Response(char *buff, uint32_t buff_size, uint32_t timeout);
 
 uint8_t SIM800_Check_Response(char *buff, uint32_t timeout);
 
