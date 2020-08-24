@@ -149,7 +149,7 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_Is_MQTT_Connected(void)
 {
-    return (SIM800_State >= SIM800_MQTT_CONNECTED);
+    return (SIM800_State >= SIM800_MQTT_RECEIVING);
 }
 
 /**
@@ -515,7 +515,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
  */
 uint8_t SIM800_MQTT_Disconnect(void)
 {
-    if (!SIM800_Is_MQTT_Connected())
+    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
@@ -536,7 +536,7 @@ uint8_t SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
-    if (!SIM800_Is_MQTT_Connected())
+    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
@@ -568,7 +568,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
                             uint8_t retain,
                             uint16_t message_id)
 {
-    if (!SIM800_Is_MQTT_Connected())
+    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
@@ -637,7 +637,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    if (!SIM800_Is_MQTT_Connected())
+    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
@@ -729,7 +729,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
     if (code == 0)
     {
-        SIM800_State = SIM800_MQTT_CONNECTED;
+        SIM800_State = SIM800_MQTT_RECEIVING;
         APP_SIM800_MQTT_CONN_OK_CB(1);
     }
     else
@@ -830,7 +830,6 @@ void SIM800_TIM_ISR(void)
     case SIM800_TCP_CONNECTED:
         break;
 
-    case SIM800_MQTT_CONNECTED:
     case SIM800_MQTT_RECEIVING:
         if (SIM800_PUBACK_Data.Flag)
         {
