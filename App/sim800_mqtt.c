@@ -983,7 +983,8 @@ void EXTI1_IRQHandler(void)
             switch (SIM800_Expected_Response)
             {
             case SIM800_RESP_NONE:
-                /** in transparent mode when expected response is none and something is received on uart handle those here*/
+                /** in AT mode when expected response is none and something is received on uart handle those here*/
+            	SIM800_Get_Response(line, 5);
                 break;
 
             case SIM800_RESP_ANY:

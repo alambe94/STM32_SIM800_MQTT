@@ -47,7 +47,12 @@ void APP_SIM800_MQTT_Ping_CB(void)
 {
 	Ping_Flag = 1;
 }
-void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint32_t mesg_len, uint8_t dup, uint8_t qos, uint16_t message_id)
+void APP_SIM800_MQTT_MSG_CB(char *topic,
+							char *message,
+							uint32_t mesg_len,
+							uint8_t dup,
+							uint8_t qos,
+							uint16_t message_id)
 {
 	dup++;
 }
@@ -79,7 +84,7 @@ void App_Main(void)
 
 	for (uint32_t i = 0; i < 10; i++)
 	{
-		if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 1000, 0, 1, 0, i))
+		if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 10, 0, 1, 0, i))
 		{
 			HAL_Delay(1000);
 		}
