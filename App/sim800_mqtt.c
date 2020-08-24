@@ -79,7 +79,8 @@ static uint32_t CH_In_STR(char ch, char *str)
 /**
   * @brief  one of the unused gpio pin interrupt is used to handle SIM800 background task
   *         it will be software triggered by sim800 uart idle interrupt
-  * @note   set NVIC to 4 bit preemption 0 bit for sub priority
+  * @note   set NVIC to 4 bit preemption 0 bit for sub priority, this interrupt priority < systick 
+  * @warning interrupt on this GPIO can no longer be used and usage is not visible on cubeMX generator
   */
 void SIM800_RX_Task_Init(void)
 {
@@ -89,7 +90,7 @@ void SIM800_RX_Task_Init(void)
 
 /**
   * @brief  one of the timer is used to generate periodic interrupt at 10ms (adjustable)
-  * @note
+  * @note set NVIC to 4 bit preemption 0 bit for sub priority, this interrupt priority < systick 
   */
 void SIM800_TX_Task_Init(void)
 {
@@ -264,9 +265,6 @@ static SIM800_Status_t _SIM800_Reset(void)
             reset_step = 0;
             retry = 0;
             sim800_result = SIM800_SUCCESS;
-            break;
-
-        default:
             break;
         }
     }
