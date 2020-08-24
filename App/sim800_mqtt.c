@@ -84,7 +84,7 @@ static uint32_t CH_In_STR(char ch, char *str)
   */
 void SIM800_RX_Task_Init(void)
 {
-    HAL_NVIC_SetPriority((IRQn_Type)EXTI1_IRQn, 7, 0);
+    HAL_NVIC_SetPriority((IRQn_Type)EXTI1_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ((IRQn_Type)EXTI1_IRQn);
 }
 
@@ -1064,6 +1064,9 @@ void SIM800_MQTT_TX_Complete_Callback(void)
 
 /** WAEK callbacks need to define by user app ****/
 __weak void APP_SIM800_Reset_OK_CB(uint8_t reset_ok)
+{
+}
+__weak void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok)
 {
 }
 __weak void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok)

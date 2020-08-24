@@ -35,6 +35,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos);
 
 /** WAEK callbacks need to define by user app ****/
 void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok);
+void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok);
 void APP_SIM800_Reset_OK_CB(uint8_t reset_ok);
 void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id);
 void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos);
