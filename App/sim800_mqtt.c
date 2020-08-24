@@ -687,8 +687,6 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
  */
 void SIM800_Reset_complete_Callback(SIM800_Status_t status)
 {
-    extern void APP_SIM800_Reset_OK_CB(uint8_t reset_ok);
-
     if (status == SIM800_SUCCESS)
     {
         SIM800_State = SIM800_RESET_OK;
@@ -730,8 +728,6 @@ void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
  */
 void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
-    extern void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok);
-
     if (code == 0)
     {
         SIM800_State = SIM800_MQTT_CONNECTED;
@@ -751,7 +747,6 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
  */
 void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
 {
-    extern void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id);
     APP_SIM800_MQTT_PUBACK_CB(message_id);
 }
 
@@ -763,7 +758,6 @@ void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
  */
 void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
 {
-    extern void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos);
     APP_SIM800_MQTT_SUBACK_CB(packet_id, qos);
 }
 
@@ -773,8 +767,7 @@ void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
  */
 void SIM800_MQTT_Ping_Callback()
 {
-    extern void APP_SIM800_MQTT_Ping_CB();
-    void APP_SIM800_MQTT_Ping_CB();
+    APP_SIM800_MQTT_Ping_CB();
 }
 
 /**
@@ -786,9 +779,13 @@ void SIM800_MQTT_Ping_Callback()
  * @param qos qos of received message
  * @param message_id message id
  */
-void SIM800_MQTT_Received_Callback(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id)
+void SIM800_MQTT_Received_Callback(char *topic,
+                                   char *message,
+                                   uint32_t mesg_len,
+                                   uint8_t dup,
+                                   uint8_t qos,
+                                   uint16_t message_id)
 {
-    extern void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id);
     APP_SIM800_MQTT_MSG_CB(topic, message, mesg_len, dup, qos, message_id);
 }
 
@@ -1063,4 +1060,29 @@ void SIM800_MQTT_TX_Complete_Callback(void)
     {
         SIM800_State = SIM800_MQTT_RECEIVING;
     }
+}
+
+/** WAEK callbacks need to define by user app ****/
+__weak void APP_SIM800_Reset_OK_CB(uint8_t reset_ok)
+{
+}
+__weak void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok)
+{
+}
+__weak void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id)
+{
+}
+__weak void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos)
+{
+}
+__weak void APP_SIM800_MQTT_Ping_CB(void)
+{
+}
+__weak void APP_SIM800_MQTT_MSG_CB(char *topic,
+                                   char *message,
+                                   uint32_t mesg_len,
+                                   uint8_t dup,
+                                   uint8_t qos,
+                                   uint16_t message_id)
+{
 }

@@ -43,11 +43,11 @@ void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos)
 	SUB_Flag = 1;
 }
 
-void APP_SIM800_MQTT_Ping_CB()
+void APP_SIM800_MQTT_Ping_CB(void)
 {
 	Ping_Flag = 1;
 }
-void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id)
+void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint32_t mesg_len, uint8_t dup, uint8_t qos, uint16_t message_id)
 {
 	dup++;
 }

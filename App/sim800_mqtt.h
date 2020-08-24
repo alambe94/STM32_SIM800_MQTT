@@ -29,11 +29,21 @@ uint32_t SIM800_Get_Response(char *buff, uint32_t timeout);
 
 uint8_t SIM800_Check_Response(char *buff, uint32_t timeout);
 
-uint8_t SIM800_MQTT_Publish(char *topic, char *message, uint32_t  message_len, uint8_t dup, uint8_t qos, uint8_t retain, uint16_t  message_id);
+uint8_t SIM800_MQTT_Publish(char *topic, char *message, uint32_t message_len, uint8_t dup, uint8_t qos, uint8_t retain, uint16_t message_id);
 
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos);
 
-void SIM800_MQTT_Loop();
-
+/** WAEK callbacks need to define by user app ****/
+void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok);
+void APP_SIM800_Reset_OK_CB(uint8_t reset_ok);
+void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id);
+void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos);
+void APP_SIM800_MQTT_Ping_CB(void);
+void APP_SIM800_MQTT_MSG_CB(char *topic,
+                            char *message,
+                            uint32_t mesg_len,
+                            uint8_t dup,
+                            uint8_t qos,
+                            uint16_t message_id);
 
 #endif /* SIM800_MQTT_H_ */
