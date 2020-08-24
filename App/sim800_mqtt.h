@@ -9,9 +9,9 @@ uint8_t SIM800_Reset(void);
 
 void SIM800_RX_Task_Trigger(void);
 
-void SIM800_MQTT_Disconnect(void);
+uint8_t SIM800_MQTT_Disconnect(void);
 
-uint8_t SIM800_Is_Connected();
+uint8_t SIM800_Is_MQTT_Connected();
 
 uint8_t SIM800_MQTT_Ping(void);
 

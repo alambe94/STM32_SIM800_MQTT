@@ -49,7 +49,7 @@ void APP_SIM800_MQTT_Ping_CB()
 }
 void APP_SIM800_MQTT_MSG_CB(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id)
 {
-  dup++;
+	dup++;
 }
 
 void App_Main(void)
@@ -57,16 +57,20 @@ void App_Main(void)
 	SIM800_Init();
 
 	SIM800_Reset();
-	while(!RST_Flag);
+	while (!RST_Flag)
+		;
 
 	SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
-	while(!TCP_Flag);
+	while (!TCP_Flag)
+		;
 
 	SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
-	while(!MQTT_Flag);
+	while (!MQTT_Flag)
+		;
 
 	SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
-	while(!SUB_Flag);
+	while (!SUB_Flag)
+		;
 
 	for (uint32_t i = 0; i < 1024; i++)
 	{
@@ -85,5 +89,6 @@ void App_Main(void)
 		}
 	}
 
-	while(1);
+	while (1)
+		;
 }

@@ -155,16 +155,14 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
 
 /**
  * @brief reset sim800
+ *        result callback is @see SIM800_Reset_complete_Callback
+ * @param none
+ * @retval return 1 if command can be executed     
  */
 uint8_t SIM800_Reset(void)
 {
-    if (SIM800_State == SIM800_IDLE)
-    {
-        SIM800_State = SIM800_RESETING;
-        return 1;
-    }
-
-    return 0;
+    SIM800_State = SIM800_RESETING;
+    return 1;
 }
 static SIM800_Status_t _SIM800_Reset(void)
 {
@@ -278,10 +276,11 @@ static SIM800_Status_t _SIM800_Reset(void)
 
 /**
  * @brief open tcp connection to mqtt broker
+ *        result callback is @see SIM800_TCP_CONN_complete_Callback
  * @param sim_apn simcard apn such "www" for vodafone and "airtelgprs.com" for airtel
  * @param broker broker mqtt address
  * @param port   broker mqtt port
- * @retval return 1 if success else 0
+ * @retval return 1 if command can be executed
  */
 struct TCP_Data_t
 {
@@ -291,7 +290,7 @@ struct TCP_Data_t
 } _TCP_Data;
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
-    if (SIM800_State >= SIM800_RESET_OK)
+    if (SIM800_State == SIM800_RESET_OK)
     {
         strncpy(_TCP_Data._SIM_APN, sim_apn, sizeof(_TCP_Data._SIM_APN));
         strncpy(_TCP_Data._Broker, broker, sizeof(_TCP_Data._Broker));
@@ -427,9 +426,6 @@ static uint8_t _SIM800_TCP_Connect()
                 sim800_result = SIM800_FAILED;
             }
             break;
-
-        default:
-            break;
         }
     }
 
@@ -438,10 +434,11 @@ static uint8_t _SIM800_TCP_Connect()
 
 /**
  * @brief send connect packet to broker
+ *        result callback is @see SIM800_MQTT_CONNACK_Callback 
  * @param topic topic to which message will be published
  * @param message message to published
  * @param message_len message length
- * @retval return 1 if success else 0
+ * @retval return 1 if command can be executed
  */
 uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             uint8_t protocol_version,
@@ -511,29 +508,43 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 /**
  * @brief return 1 if sim800 is connected to broker
  */
-uint8_t SIM800_Is_Connected()
+uint8_t SIM800_Is_MQTT_Connected()
 {
     return (SIM800_State >= SIM800_MQTT_CONNECTED);
 }
 
 /**
  * @brief send disconnect packet
+ * @retval return 1 if command can be executed
  */
-void SIM800_MQTT_Disconnect(void)
+uint8_t SIM800_MQTT_Disconnect(void)
 {
+    if (!SIM800_Is_MQTT_Connected())
+    {
+        return 0;
+    }
+
     SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
     SIM800_UART_Send_Char(0x00);
 
     SIM800_State = SIM800_TCP_CONNECTED;
+
+    return 1;
 }
 
 /**
  * @brief send ping packet
+ * @retval return 1 if command can be executed
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
+    if (!SIM800_Is_MQTT_Connected())
+    {
+        return 0;
+    }
+
     SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xC0); /** MQTT ping */
@@ -551,7 +562,7 @@ uint8_t SIM800_MQTT_Ping(void)
  * @param topic topic to which message will be published
  * @param message message to published
  * @param message_len message length
- * @retval return 1 if success else 0
+ * @retval return 1 if command can be executed
  */
 uint8_t SIM800_MQTT_Publish(char *topic,
                             char *message,
@@ -561,6 +572,11 @@ uint8_t SIM800_MQTT_Publish(char *topic,
                             uint8_t retain,
                             uint16_t message_id)
 {
+    if (!SIM800_Is_MQTT_Connected())
+    {
+        return 0;
+    }
+
     uint8_t topic_len = strlen(topic);
 
     uint8_t pub = 0x30 | (dup << 3) | (qos << 1) | retain;
@@ -618,12 +634,17 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 /**
  * @brief subscribe to a topic
  * @param topic topic to be subscribe to
- * @param packet_id message ID can be arbitrary? TODO
+ * @param packet_id message ID can be arbitrary?
  * @param qos 0, 1
- * @retval return 1 if success else 0
+ * @retval return 1 if command can be executed
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
+    if (!SIM800_Is_MQTT_Connected())
+    {
+        return 0;
+    }
+
     uint8_t topic_len = strlen(topic);
 
     uint32_t packet_len = 2 + 2 + topic_len + 1;
@@ -661,7 +682,11 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 }
 
 /******************** callbacks **************************/
-
+/**
+ * @brief called when SIM800 reset sequence is complete
+ *        callback response for @see SIM800_Reset
+ * @param code reset success(GPRS is active) of failed
+ */
 void SIM800_Reset_complete_Callback(SIM800_Status_t status)
 {
     extern void APP_SIM800_Reset_OK_CB(uint8_t reset_ok);
@@ -678,6 +703,11 @@ void SIM800_Reset_complete_Callback(SIM800_Status_t status)
     }
 }
 
+/**
+ * @brief called when TCP connection is established
+ *        callback response for @see SIM800_TCP_Connect
+ * @param code TCP connection success of failed
+ */
 void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
 {
     extern void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok);
@@ -697,7 +727,8 @@ void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
 
 /**
  * @brief called when CONNACK is received
- * @param code return code fro broker
+ *        callback response for @see SIM800_MQTT_Connect
+ * @param code return code from broker
  */
 void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
@@ -717,6 +748,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 
 /**
  * @brief called when PUBACK is received
+ *        callback response for @see SIM800_MQTT_Publish
  * @param message_id message on which ack is received
  */
 void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
@@ -727,6 +759,7 @@ void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
 
 /**
  * @brief called when SUBACK is received
+ *        callback response for @see SIM800_MQTT_Subscribe
  * @param packet_id packet on which ack is received
  * @param qos of topic
  */
@@ -738,6 +771,7 @@ void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
 
 /**
  * @brief called when ping response is received
+ *        callback response for @see SIM800_MQTT_Ping
  */
 void SIM800_MQTT_Ping_Callback()
 {
@@ -746,9 +780,13 @@ void SIM800_MQTT_Ping_Callback()
 }
 
 /**
- * @brief called when message is received TODO
+ * @brief called when message is received
  * @param topic topic on which message is received
  * @param message received message
+ * @param mesg_len message length
+ * @param dup duplicates flag
+ * @param qos qos of received message
+ * @param message_id message id
  */
 void SIM800_MQTT_Received_Callback(char *topic, char *message, uint16_t mesg_len, uint8_t dup, uint8_t qos, uint8_t message_id)
 {
@@ -757,12 +795,11 @@ void SIM800_MQTT_Received_Callback(char *topic, char *message, uint16_t mesg_len
 }
 
 /************************* ISR ***************************/
-
 /**
- * @brief this sim800 rx task, called when sim800 timer expires
- *        called from @see HAL_UART_TxCpltCallback in stm32f4xx_it.c
+ * @brief this sim800 TX TASK, called when sim800 timer expires every 10ms(adjustable)
+ *        called from @see HAL_TIM_PeriodElapsedCallback in stm32f4xx_it.c
  **/
-void SIM800_TIM_CMPLT_ISR(void)
+void SIM800_TIM_ISR(void)
 {
     SIM800_Status_t sim800_result = SIM800_BUSY;
 
@@ -816,7 +853,8 @@ void SIM800_TIM_CMPLT_ISR(void)
 }
 
 /**
-  * @brief this sim800 rx task, triggered by software in sim800 uart idle isr
+  * @brief this is sim800 RX TASK, software triggered by sim800 uart idle interrupt
+  *        @see SIM800_RX_Task_Trigger & SIM800_UART_RX_ISR in sim800_uart.c
   */
 void EXTI1_IRQHandler(void)
 {
@@ -870,11 +908,9 @@ void EXTI1_IRQHandler(void)
                     SIM800_MQTT_Ping_Callback();
                 }
                 break;
-
+            /** in transparent mode when expected response is none and something is received on uart handle those here*/
             case SIM800_RESP_NONE:
-
                 SIM800_UART_Get_Chars(rx_chars, 1, 5);
-
                 if ((rx_chars[0] & 0x30) == 0x30)
                 {
                     uint8_t qos = (rx_chars[0] >> 1) & 0x03;
@@ -927,9 +963,9 @@ void EXTI1_IRQHandler(void)
                     SIM800_UART_Get_Chars(rx_chars, 9, 5);
                     if (strstr(rx_chars, "\nCLOSED\r\n") != NULL)
                     {
-                    	/** TCP connection closed due to inactivity */
-                    	/** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
-                    	SIM800_State = SIM800_RESET_OK;
+                        /** TCP connection closed due to inactivity */
+                        /** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
+                        SIM800_State = SIM800_RESET_OK;
                     }
                 }
                 break;
@@ -952,6 +988,7 @@ void EXTI1_IRQHandler(void)
             switch (SIM800_Expected_Response)
             {
             case SIM800_RESP_NONE:
+                /** in transparent mode when expected response is none and something is received on uart handle those here*/
                 break;
 
             case SIM800_RESP_ANY:
