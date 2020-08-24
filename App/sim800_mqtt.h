@@ -3,6 +3,20 @@
 
 #include <stdint.h>
 
+enum SIM800_State_t
+{
+    SIM800_IDLE,
+    SIM800_RESETING,
+    SIM800_RESET_OK,
+    SIM800_TCP_CONNECTING,
+    SIM800_TCP_CONNECTED, /** after this modem is in transparent mode */
+
+    SIM800_MQTT_CONNECTED,
+
+    SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
+    SIM800_MQTT_RECEIVING,
+};
+
 void SIM800_Init(void);
 
 uint8_t SIM800_Reset(void);
@@ -12,6 +26,8 @@ void SIM800_RX_Task_Trigger(void);
 uint8_t SIM800_MQTT_Disconnect(void);
 
 uint8_t SIM800_Is_MQTT_Connected();
+
+enum SIM800_State_t SIM800_Get_State(void);
 
 uint8_t SIM800_MQTT_Ping(void);
 

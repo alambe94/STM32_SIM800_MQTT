@@ -31,20 +31,8 @@ enum SIM800_Response_t
 } SIM800_Expected_Response,
     SIM800_Received_Response;
 
-enum SIM800_State_t
-{
-    SIM800_IDLE,
-    SIM800_RESETING,
-    SIM800_RESET_OK,
-    SIM800_TCP_CONNECTING,
-    SIM800_TCP_CONNECTED, /** after this modem is in transparent mode */
-
-    SIM800_MQTT_CONNECTED,
-
-    SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
-    SIM800_MQTT_RECEIVING,
-
-} SIM800_State;
+/** hold sim800 state */
+static enum SIM800_State_t SIM800_State;
 
 typedef enum SIM800_Status_t
 {
@@ -117,6 +105,8 @@ void SIM800_Init(void)
 
     SIM800_TX_Task_Init();
 
+    SIM800_State = SIM800_IDLE;
+
     HAL_TIM_Base_Start_IT(&htim14);
 }
 
@@ -152,6 +142,22 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
     res = strstr(reply, buff);
 
     return (res != NULL);
+}
+
+/**
+ * @brief return 1 if sim800 is connected to broker
+ */
+uint8_t SIM800_Is_MQTT_Connected(void)
+{
+    return (SIM800_State >= SIM800_MQTT_CONNECTED);
+}
+
+/**
+ * @brief return the state of sim800
+ */
+enum SIM800_State_t SIM800_Get_State(void)
+{
+    return SIM800_State;
 }
 
 /**
@@ -501,14 +507,6 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
     SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
 
     return 1;
-}
-
-/**
- * @brief return 1 if sim800 is connected to broker
- */
-uint8_t SIM800_Is_MQTT_Connected()
-{
-    return (SIM800_State >= SIM800_MQTT_CONNECTED);
 }
 
 /**

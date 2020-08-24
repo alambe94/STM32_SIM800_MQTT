@@ -61,39 +61,45 @@ void App_Main(void)
 {
 	SIM800_Init();
 
-	SIM800_Reset();
-	while (!RST_Flag)
-		;
-
-	SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
-	while (!TCP_Flag)
-		;
-
-	SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
-	while (!MQTT_Flag)
-		;
-
-	SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
-	while (!SUB_Flag)
-		;
-
 	for (uint32_t i = 0; i < 1024; i++)
 	{
 		packet[i] = '0' + i % 10;
 	}
 
-	for (uint32_t i = 0; i < 10; i++)
+	while (1)
 	{
-		if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 10, 0, 1, 0, i))
+		if (SIM800_Get_State() == SIM800_IDLE)
 		{
-			HAL_Delay(1000);
+			SIM800_Reset();
 		}
-		else
+
+		if (SIM800_Get_State() == SIM800_RESET_OK)
 		{
-			break;
+			SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
+		}
+
+		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
+		{
+			SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
+		}
+
+		if (SIM800_Get_State() == SIM800_MQTT_CONNECTED)
+		{
+			SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
+
+			HAL_Delay(1000);
+
+			for (uint32_t i = 0; i < 10; i++)
+			{
+				if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 10, 0, 1, 0, i))
+				{
+					HAL_Delay(1000);
+				}
+				else
+				{
+					break;
+				}
+			}
 		}
 	}
-
-	while (1)
-		;
 }
