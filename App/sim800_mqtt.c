@@ -714,7 +714,7 @@ void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
     else
     {
         // failed
-        SIM800_State = SIM800_IDLE;
+        SIM800_State = SIM800_RESET_OK;
         APP_SIM800_TCP_CONN_OK_CB(0);
     }
 }
@@ -733,7 +733,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
     }
     else
     {
-        SIM800_State = SIM800_IDLE;
+        SIM800_State = SIM800_RESET_OK;
         APP_SIM800_MQTT_CONN_OK_CB(0);
     }
 }
