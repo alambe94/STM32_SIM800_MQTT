@@ -16,17 +16,17 @@ uint8_t SUB_Flag = 0;
 
 uint8_t Ping_Flag = 0;
 
-void APP_SIM800_Reset_OK_CB(uint8_t reset_ok)
+void APP_SIM800_Reset_CB(uint8_t reset_ok)
 {
 	RST_Flag = reset_ok;
 }
 
-void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok)
+void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
 {
 	TCP_Flag = tcp_ok;
 }
 
-void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok)
+void APP_SIM800_MQTT_CONN_CB(uint8_t mqtt_ok)
 {
 	MQTT_Flag = mqtt_ok;
 }

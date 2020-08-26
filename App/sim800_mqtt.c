@@ -67,7 +67,7 @@ static uint32_t CH_In_STR(char ch, char *str)
 /**
   * @brief  one of the unused gpio pin interrupt is used to handle SIM800 background task
   *         it will be software triggered by sim800 uart idle interrupt
-  * @note   set NVIC to 4 bit preemption 0 bit for sub priority, this interrupt priority < systick 
+  * @note   set NVIC to 4 bit for preemption 0 bit for sub priority, this interrupt priority < systick 
   * @warning interrupt on this GPIO can no longer be used and usage is not visible on cubeMX generator
   */
 void SIM800_RX_Task_Init(void)
@@ -107,6 +107,7 @@ void SIM800_Init(void)
 
     SIM800_State = SIM800_IDLE;
 
+    /** timer used for tx task is configured in cube @see tim.c */
     HAL_TIM_Base_Start_IT(&htim14);
 }
 
@@ -218,7 +219,6 @@ static SIM800_Status_t _SIM800_Reset(void)
             break;
 
         case 4:
-            /** disable echo */
             SIM800_UART_Flush_RX();
             reset_step++;
             next_delay = 100;
@@ -468,9 +468,12 @@ static uint8_t _SIM800_TCP_Connect()
 /**
  * @brief send connect packet to broker
  *        result callback is @see SIM800_MQTT_CONNACK_Callback 
- * @param topic topic to which message will be published
- * @param message message to published
- * @param message_len message length
+ * @param protocol_version used mqtt version 3 for 3.1 and 4 for 3.1.1
+ * @param flags control flags TODO implement bitfields for flags
+ * @param keep_alive keep alive interval in seconds
+ * @param my_id clients unique ID across mqtt broker
+ * @param user_name user name for mqtt broker
+ * @param password fpassword for mqtt broker
  * @retval return 1 if command can be executed
  */
 uint8_t SIM800_MQTT_Connect(char *protocol_name,
@@ -718,12 +721,12 @@ void SIM800_Reset_complete_Callback(SIM800_Status_t status)
     if (status == SIM800_SUCCESS)
     {
         SIM800_State = SIM800_RESET_OK;
-        APP_SIM800_Reset_OK_CB(1);
+        APP_SIM800_Reset_CB(1);
     }
     else
     {
         // failed
-        APP_SIM800_Reset_OK_CB(0);
+        APP_SIM800_Reset_CB(0);
     }
 }
 
@@ -734,18 +737,16 @@ void SIM800_Reset_complete_Callback(SIM800_Status_t status)
  */
 void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
 {
-    extern void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok);
-
     if (status == SIM800_SUCCESS)
     {
         SIM800_State = SIM800_TCP_CONNECTED;
-        APP_SIM800_TCP_CONN_OK_CB(1);
+        APP_SIM800_TCP_CONN_CB(1);
     }
     else
     {
         // failed
         SIM800_State = SIM800_RESET_OK;
-        APP_SIM800_TCP_CONN_OK_CB(0);
+        APP_SIM800_TCP_CONN_CB(0);
     }
 }
 
@@ -759,12 +760,12 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
     if (code == 0)
     {
         SIM800_State = SIM800_MQTT_RECEIVING;
-        APP_SIM800_MQTT_CONN_OK_CB(1);
+        APP_SIM800_MQTT_CONN_CB(1);
     }
     else
     {
         SIM800_State = SIM800_RESET_OK;
-        APP_SIM800_MQTT_CONN_OK_CB(0);
+        APP_SIM800_MQTT_CONN_CB(0);
     }
 }
 
@@ -1091,13 +1092,13 @@ void SIM800_MQTT_TX_Complete_Callback(void)
 }
 
 /** WAEK callbacks need to define by user app ****/
-__weak void APP_SIM800_Reset_OK_CB(uint8_t reset_ok)
+__weak void APP_SIM800_Reset_CB(uint8_t reset_ok)
 {
 }
-__weak void APP_SIM800_TCP_CONN_OK_CB(uint8_t tcp_ok)
+__weak void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
 {
 }
-__weak void APP_SIM800_MQTT_CONN_OK_CB(uint8_t mqtt_ok)
+__weak void APP_SIM800_MQTT_CONN_CB(uint8_t mqtt_ok)
 {
 }
 __weak void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id)
