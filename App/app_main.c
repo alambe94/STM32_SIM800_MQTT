@@ -83,7 +83,7 @@ void App_Main(void)
 			SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 		}
 
-		if (SIM800_Get_State() == SIM800_MQTT_CONNECTED)
+		if (SIM800_Is_MQTT_Connected())
 		{
 			SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
 
