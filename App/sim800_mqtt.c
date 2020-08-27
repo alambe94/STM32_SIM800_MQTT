@@ -192,14 +192,13 @@ static SIM800_Status_t _SIM800_Reset(void)
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
             sim800_result = SIM800_BUSY;
             reset_step++;
-            retry = 0;
             next_delay = 1000;
             break;
 
         case 1:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
             reset_step++;
-            next_delay = 3000;
+            next_delay = 5000;
             break;
 
         case 2:
@@ -215,7 +214,7 @@ static SIM800_Status_t _SIM800_Reset(void)
             SIM800_UART_Send_String("ATE0\r\n");
             SIM800_Expected_Response = SIM800_RESP_NONE;
             reset_step++;
-            next_delay = 100;
+            next_delay = 1000;
             break;
 
         case 4:
@@ -235,10 +234,10 @@ static SIM800_Status_t _SIM800_Reset(void)
             }
             else
             {
-                next_delay = 200;
+                next_delay = 2000;
                 SIM800_Expected_Response = SIM800_RESP_SMS_READY;
                 retry++;
-                if (retry == 100)
+                if (retry == 10)
                 {
                     sim800_result = SIM800_FAILED; /** failed */
                 }
@@ -252,7 +251,7 @@ static SIM800_Status_t _SIM800_Reset(void)
                 SIM800_Received_Response = SIM800_RESP_NONE;
                 reset_step++;
                 retry = 0;
-                next_delay = 100;
+                next_delay = 1000;
             }
             else
             {
@@ -313,7 +312,6 @@ static uint8_t _SIM800_TCP_Connect()
     static SIM800_Status_t sim800_result = SIM800_BUSY;
 
     static uint8_t tcp_step = 0;
-    static uint8_t retry = 0;
 
     static uint32_t next_delay = 0;
     static uint32_t loop_ticks = 0;
@@ -329,7 +327,6 @@ static uint8_t _SIM800_TCP_Connect()
             SIM800_Expected_Response = SIM800_RESP_SHUT_OK;
             sim800_result = SIM800_BUSY;
             next_delay = 10;
-            retry = 0;
             tcp_step++;
             break;
 
@@ -341,7 +338,6 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
                 SIM800_Expected_Response = SIM800_RESP_OK;
                 next_delay = 10;
-                retry = 0;
                 tcp_step++;
             }
             else
@@ -358,17 +354,12 @@ static uint8_t _SIM800_TCP_Connect()
                 /** assemble sim apn */
                 SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", _TCP_Data._SIM_APN);
                 SIM800_Expected_Response = SIM800_RESP_OK;
-                next_delay = 300;
-                retry = 0;
+                next_delay = 3000;
                 tcp_step++;
             }
             else
             {
-            	retry++;
-            	if(retry == 10)
-            	{
-                    sim800_result = SIM800_FAILED;
-            	}
+                sim800_result = SIM800_FAILED;
             }
             break;
 
@@ -380,17 +371,12 @@ static uint8_t _SIM800_TCP_Connect()
                 /** Bring up wireless connection (GPRS or CSD) */
                 SIM800_UART_Send_String("AT+CIICR\r\n");
                 SIM800_Expected_Response = SIM800_RESP_OK;
-                next_delay = 100;
-                retry = 0;
+                next_delay = 1000;
                 tcp_step++;
             }
             else
             {
-            	retry++;
-            	if(retry == 10)
-            	{
-                    sim800_result = SIM800_FAILED;
-            	}
+                sim800_result = SIM800_FAILED;
             }
             break;
 
@@ -403,16 +389,11 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_UART_Send_String("AT+CIFSR\r\n");
                 SIM800_Expected_Response = SIM800_RESP_IP;
                 next_delay = 100;
-                retry = 0;
                 tcp_step++;
             }
             else
             {
-            	retry++;
-            	if(retry == 10)
-            	{
-                    sim800_result = SIM800_FAILED;
-            	}
+                sim800_result = SIM800_FAILED;
             }
             break;
 
@@ -426,17 +407,12 @@ static uint8_t _SIM800_TCP_Connect()
                                    _TCP_Data._Broker,
                                    _TCP_Data._Port);
                 SIM800_Expected_Response = SIM800_RESP_CONNECT;
-                next_delay = 100;
-                retry = 0;
+                next_delay = 1000;
                 tcp_step++;
             }
             else
             {
-            	retry++;
-            	if(retry == 10)
-            	{
-                    sim800_result = SIM800_FAILED;
-            	}
+                sim800_result = SIM800_FAILED;
             }
             break;
 
@@ -446,17 +422,12 @@ static uint8_t _SIM800_TCP_Connect()
             {
                 SIM800_Received_Response = SIM800_RESP_NONE;
                 sim800_result = SIM800_SUCCESS;
-                next_delay = 10;
-                retry = 0;
+                next_delay = 100;
                 tcp_step = 0;
             }
             else
             {
-            	retry++;
-            	if(retry == 10)
-            	{
-                    sim800_result = SIM800_FAILED;
-            	}
+                sim800_result = SIM800_FAILED;
             }
             break;
         }
