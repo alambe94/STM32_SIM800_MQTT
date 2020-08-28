@@ -3,13 +3,6 @@
 
 #include <stdint.h>
 
-#define USER_NAME (1 << 7)
-#define PASSWORD (1 << 6)
-#define WILL_RETAIN (1 << 5)
-#define WILL_QOS (1 << 3)
-#define WILL_FLAG (1 << 2)
-#define CLEAN_SESSION (1 << 1)
-
 /**
  * mqtt connect flags
  */
@@ -18,13 +11,13 @@ typedef union CONN_Flag_t
     uint8_t C_Flags;
     struct
     {
-        uint8_t User_Name : 1;
-        uint8_t Password : 1;
-        uint8_t Will_Retain : 1;
-        uint8_t Will_QOS : 2;
-        uint8_t Will_Flag : 1;
-        uint8_t Clean_Session : 1;
         uint8_t Reserved : 1;
+        uint8_t Clean_Session : 1;
+        uint8_t Will_Flag : 1;
+        uint8_t Will_QOS : 2;
+        uint8_t Will_Retain : 1;
+        uint8_t Password : 1;
+        uint8_t User_Name : 1;
     } Bits;
 } CONN_Flag_t;
 
