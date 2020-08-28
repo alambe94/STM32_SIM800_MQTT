@@ -80,7 +80,10 @@ void App_Main(void)
 
 		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
 		{
-			SIM800_MQTT_Connect("MQTT", 4, 0xC2, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
+			CONN_Flag_t flags = {.C_Flags = 0xC2};
+			flags.Bits.Password = 1;
+			flags.Bits.User_Name = 1;
+			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 		}
 
 		if (SIM800_Is_MQTT_Connected())

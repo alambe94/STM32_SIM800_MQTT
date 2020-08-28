@@ -198,7 +198,7 @@ static SIM800_Status_t _SIM800_Reset(void)
         case 1:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
             reset_step++;
-            next_delay = 5000;
+            next_delay = 3500;
             break;
 
         case 2:
@@ -440,7 +440,7 @@ static uint8_t _SIM800_TCP_Connect()
  * @brief send connect packet to broker
  *        result callback is @see SIM800_MQTT_CONNACK_Callback 
  * @param protocol_version used mqtt version 3 for 3.1 and 4 for 3.1.1
- * @param flags control flags TODO implement bitfields for flags
+ * @param bitfields for control flags
  * @param keep_alive keep alive interval in seconds
  * @param my_id clients unique ID across mqtt broker
  * @param user_name user name for mqtt broker
@@ -449,7 +449,7 @@ static uint8_t _SIM800_TCP_Connect()
  */
 uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             uint8_t protocol_version,
-                            uint8_t flags,
+                            CONN_Flag_t flags,
                             uint16_t keep_alive,
                             char *my_id,
                             char *user_name,
@@ -462,8 +462,18 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     uint8_t protocol_name_len = strlen(protocol_name);
     uint8_t my_id_len = strlen(my_id);
-    uint8_t user_name_len = strlen(user_name);
-    uint8_t password_len = strlen(password);
+
+    uint16_t user_name_len = 0;
+    uint16_t password_len = 0;
+
+    if (flags.Bits.User_Name && user_name != NULL)
+    {
+        user_name_len = strlen(user_name);
+        if (flags.Bits.Password && password != NULL)
+        {
+            password_len = strlen(password);
+        }
+    }
 
     uint32_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
 
@@ -488,7 +498,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     SIM800_UART_Send_Char(protocol_version);
 
-    SIM800_UART_Send_Char(flags);
+    SIM800_UART_Send_Char(flags.C_Flags);
 
     SIM800_UART_Send_Char(keep_alive >> 8);
     SIM800_UART_Send_Char(keep_alive & 0xFF);
@@ -497,13 +507,19 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
     SIM800_UART_Send_Char(my_id_len & 0xFF);
     SIM800_UART_Send_String(my_id);
 
-    SIM800_UART_Send_Char(user_name_len >> 8);
-    SIM800_UART_Send_Char(user_name_len & 0xFF);
-    SIM800_UART_Send_String(user_name);
+    if (flags.Bits.User_Name)
+    {
+        SIM800_UART_Send_Char(user_name_len >> 8);
+        SIM800_UART_Send_Char(user_name_len & 0xFF);
+        SIM800_UART_Send_String(user_name);
 
-    SIM800_UART_Send_Char(password_len >> 8);
-    SIM800_UART_Send_Char(password_len & 0xFF);
-    SIM800_UART_Send_String(password);
+        if (flags.Bits.Password)
+        {
+            SIM800_UART_Send_Char(password_len >> 8);
+            SIM800_UART_Send_Char(password_len & 0xFF);
+            SIM800_UART_Send_String(password);
+        }
+    }
 
     SIM800_Expected_Response = SIM800_RESP_MQTT_CONNACK;
 
