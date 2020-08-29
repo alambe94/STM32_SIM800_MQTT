@@ -198,7 +198,7 @@ static SIM800_Status_t _SIM800_Reset(void)
         case 1:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
             reset_step++;
-            next_delay = 3500;
+            next_delay = 5000;
             break;
 
         case 2:
@@ -594,7 +594,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     uint8_t topic_len = strlen(topic);
 
-    uint8_t pub = 0x30 | (dup & 0x01 << 3) | (qos & 0x03 << 1) | (retain & 0x01);
+    uint8_t pub = 0x30 | ((dup & 0x01) << 3) | ((qos & 0x03) << 1) | (retain & 0x01);
 
     SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 

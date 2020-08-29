@@ -3,7 +3,7 @@
 
 uint32_t MQTT_Error_Count;
 
-char packet[1000];
+char Packet[] = "123456789\r\n";
 
 uint8_t RST_Flag = 0;
 uint8_t TCP_Flag = 0;
@@ -15,6 +15,49 @@ uint8_t SUB_QOS = 0;
 uint8_t SUB_Flag = 0;
 
 uint8_t Ping_Flag = 0;
+
+void App_Main(void)
+{
+	SIM800_Init();
+
+	while (1)
+	{
+		if (SIM800_Get_State() == SIM800_IDLE)
+		{
+			SIM800_Reset();
+		}
+
+		if (SIM800_Get_State() == SIM800_RESET_OK)
+		{
+			SIM800_TCP_Connect("airtelgprs.com", "broker.hivemq.com", 1883);
+		}
+
+		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
+		{
+			CONN_Flag_t flags = {.C_Flags = 0xC2};
+			flags.Bits.Password = 0;
+			flags.Bits.User_Name = 0;
+			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
+		}
+
+		if (SIM800_Is_MQTT_Connected())
+		{
+			SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
+
+			for (uint32_t i = 0; i < 10; i++)
+			{
+				if (SIM800_MQTT_Publish("alsaad/feeds/Logger", Packet, sizeof(Packet), 0, 1, 0, i))
+				{
+					HAL_Delay(1000);
+				}
+				else
+				{
+					break;
+				}
+			}
+		}
+	}
+}
 
 void APP_SIM800_Reset_CB(uint8_t reset_ok)
 {
@@ -55,54 +98,4 @@ void APP_SIM800_MQTT_MSG_CB(char *topic,
 							uint16_t message_id)
 {
 	dup++;
-}
-
-void App_Main(void)
-{
-	SIM800_Init();
-
-	for (uint32_t i = 0; i < 1024; i++)
-	{
-		packet[i] = '0' + i % 10;
-	}
-
-	while (1)
-	{
-		if (SIM800_Get_State() == SIM800_IDLE)
-		{
-			SIM800_Reset();
-		}
-
-		if (SIM800_Get_State() == SIM800_RESET_OK)
-		{
-			SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
-		}
-
-		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
-		{
-			CONN_Flag_t flags = {.C_Flags = 0xC2};
-			flags.Bits.Password = 1;
-			flags.Bits.User_Name = 1;
-			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
-		}
-
-		if (SIM800_Is_MQTT_Connected())
-		{
-			SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
-
-			HAL_Delay(1000);
-
-			for (uint32_t i = 0; i < 10; i++)
-			{
-				if (SIM800_MQTT_Publish("alsaad/feeds/Logger", packet, 10, 0, 1, 0, i))
-				{
-					HAL_Delay(1000);
-				}
-				else
-				{
-					break;
-				}
-			}
-		}
-	}
 }
