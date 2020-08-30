@@ -57,9 +57,10 @@ void App_Main(void)
 				{
 					HAL_Delay(1000);
 				}
-				else
+
+				if (SIM800_MQTT_Ping())
 				{
-					break;
+					HAL_Delay(1000);
 				}
 			}
 
@@ -98,7 +99,7 @@ void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos)
 
 void APP_SIM800_MQTT_Ping_CB(void)
 {
-	Ping_Flag = 1;
+	Ping_Flag++;
 }
 void APP_SIM800_MQTT_MSG_CB(char *topic,
 							char *message,
