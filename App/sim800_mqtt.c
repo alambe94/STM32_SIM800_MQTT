@@ -900,7 +900,7 @@ void EXTI1_IRQHandler(void)
                     if (topic_len > sizeof(topic))
                     {
                         topic_len = sizeof(topic);
-                        /**  TODO handle this exeption */
+                        /**  TODO handle this exception */
                     }
                     SIM800_UART_Get_Chars(topic, topic_len, 0);
 
@@ -917,7 +917,7 @@ void EXTI1_IRQHandler(void)
                     if (mesg_len > sizeof(msg))
                     {
                         mesg_len = sizeof(msg);
-                        /**  TODO handle this exeption */
+                        /**  TODO handle this exception */
                     }
                     SIM800_UART_Get_Chars(msg, mesg_len, 0);
 
