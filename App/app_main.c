@@ -3,7 +3,7 @@
 
 uint32_t MQTT_Error_Count;
 
-char Packet[] = "123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789\r\n";
+char Packet[1408];
 
 uint8_t RST_Flag = 0;
 uint8_t TCP_Flag = 0;
@@ -21,6 +21,13 @@ uint8_t Ping_Flag = 0;
 void App_Main(void)
 {
 	SIM800_Init();
+
+	for(uint16_t i=0; i<sizeof(Packet); i++)
+	{
+		Packet[i] = i%10 + 48;
+	}
+
+	Packet[sizeof(Packet)-1] = '\n';
 
 	while (1)
 	{
@@ -44,8 +51,6 @@ void App_Main(void)
 
 		if (SIM800_Is_MQTT_Connected())
 		{
-			SIM800_MQTT_Subscribe("alsaad/feeds/Logger", 45, 1);
-
 			for (uint32_t i = 0; i < 10; i++)
 			{
 				if (SIM800_MQTT_Publish("alsaad/feeds/Logger", Packet, sizeof(Packet), 0, 1, 0, i))
