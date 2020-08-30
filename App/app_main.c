@@ -1,4 +1,5 @@
 #include "sim800_mqtt.h"
+#include "sim800_uart.h"
 #include "stm32f4xx_hal.h"
 
 uint32_t MQTT_Error_Count;
@@ -38,7 +39,7 @@ void App_Main(void)
 
 		if (SIM800_Get_State() == SIM800_RESET_OK)
 		{
-			SIM800_TCP_Connect("airtelgprs.com", "jarsservices.info", 1883);
+			//SIM800_TCP_Connect("airtelgprs.com", "jarsservices.info", 1883);
 		}
 
 		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
@@ -75,6 +76,12 @@ void APP_SIM800_Reset_CB(uint8_t reset_ok)
 	RST_Flag = reset_ok;
 }
 
+void APP_SIM800_Date_Time_CB(struct SIM800_Date_Time_t *dt)
+{
+	dt->Year;
+	dt->Minutes;
+}
+
 void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
 {
 	TCP_Flag = tcp_ok;
@@ -101,6 +108,7 @@ void APP_SIM800_MQTT_Ping_CB(void)
 {
 	Ping_Flag++;
 }
+
 void APP_SIM800_MQTT_MSG_CB(char *topic,
 							char *message,
 							uint32_t mesg_len,

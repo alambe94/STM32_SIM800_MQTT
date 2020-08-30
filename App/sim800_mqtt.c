@@ -19,6 +19,7 @@ struct SIM800_Response_Flags_t
     uint8_t SIM800_RESP_SMS_READY;
     uint8_t SIM800_RESP_CALL_READY;
     uint8_t SIM800_RESP_GPRS_READY;
+    uint8_t SIM800_RESP_TIME;
     uint8_t SIM800_RESP_SHUT_OK;
     uint8_t SIM800_RESP_IP;
     uint8_t SIM800_RESP_CONNECT;
@@ -160,6 +161,21 @@ enum SIM800_State_t SIM800_Get_State(void)
 }
 
 /**
+ * @brief get network time
+ * @retval return 1 if command can be executed
+ */
+uint8_t SIM800_Get_Time(void)
+{
+	if(SIM800_State < SIM800_TCP_CONNECTED)
+	{
+		SIM800_UART_Send_String("AT+CCLK?\r\n");
+		return 1;
+	}
+
+	return 0;
+}
+
+/**
  * @brief reset sim800
  *        result callback is @see SIM800_Reset_complete_Callback
  * @param none
@@ -262,6 +278,27 @@ static SIM800_Status_t _SIM800_Reset(void)
             break;
 
         case 7:
+            /** wait for network time */
+            if (SIM800_Response_Flags.SIM800_RESP_TIME)
+            {
+            	SIM800_Response_Flags.SIM800_RESP_TIME = 0;
+                reset_step++;
+                retry = 0;
+                next_delay = 1000;
+            }
+            else
+            {
+                SIM800_UART_Send_String("AT+CCLK?\r\n");
+                next_delay = 1000;
+                retry++;
+                if (retry == 2)
+                {
+                    sim800_result = SIM800_SUCCESS; /** return success even if time failed */
+                }
+            }
+        	break;
+
+        case 8:
             SIM800_UART_Flush_RX();
             reset_step = 0;
             retry = 0;
@@ -771,6 +808,15 @@ void SIM800_MQTT_Ping_Callback()
 }
 
 /**
+ * @brief called when network time is received
+ *        callback response for @see SIM800_Get_Time
+ */
+void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
+{
+    APP_SIM800_Date_Time_CB(dt);
+}
+
+/**
  * @brief called when message is received
  * @param topic topic on which message is received
  * @param message received message
@@ -857,7 +903,7 @@ void EXTI1_IRQHandler(void)
         if (SIM800_State >= SIM800_TCP_CONNECTED)
         {
             /** in transparent mode */
-            char rx_chars[32] = "";
+            char rx_chars[64] = "";
 
             rx_chars[0] = SIM800_UART_Peek_Char();
 
@@ -980,37 +1026,49 @@ void EXTI1_IRQHandler(void)
         else
         {
             /** in AT mode */
-            char line[32] = "";
+            char line[64] = "";
 
             SIM800_Get_Response(line, sizeof(line), 0);
 
-            if (strncmp(line, "OK", sizeof(line)) == 0)
+            if (strcmp(line, "OK") == 0)
             {
                 SIM800_Response_Flags.SIM800_RESP_OK = 1;
             }
-            else if (strncmp(line, "Call Ready", sizeof(line) == 00))
+            else if (strcmp(line, "Call Ready") == 00)
             {
                 SIM800_Response_Flags.SIM800_RESP_CALL_READY = 1;
             }
-            else if (strncmp(line, "SMS Ready", sizeof(line)) == 0)
+            else if (strcmp(line, "SMS Ready") == 0)
             {
                 SIM800_Response_Flags.SIM800_RESP_SMS_READY = 1;
             }
-            else if (strncmp(line, "+CGATT: 1", sizeof(line)) == 0)
+            else if (strcmp(line, "+CGATT: 1") == 0)
             {
                 SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 1;
             }
-            else if (strncmp(line, "SHUT OK", sizeof(line)) == 0)
+            else if (strcmp(line, "SHUT OK") == 0)
             {
                 SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 1;
             }
-            else if (strncmp(line, "CONNECT", sizeof(line)) == 0)
+            else if (strcmp(line, "CONNECT") == 0)
             {
                 SIM800_Response_Flags.SIM800_RESP_CONNECT = 1;
             }
             else if (CH_In_STR('.', line) == 3)
             {
                 SIM800_Response_Flags.SIM800_RESP_IP = 1;
+            }
+            else if (strncmp(line, "+CCLK: ", 7) == 0)
+            {
+            	struct SIM800_Date_Time_t dt;
+            	dt.Year = (line[8] - '0') * 10 + line[9] - '0';
+            	dt.Month = (line[11] - '0') * 10 + line[12] - '0';
+            	dt.Date = (line[14] - '0') * 10 + line[15] - '0';
+
+            	dt.Hours = (line[17] - '0') * 10 + line[18] - '0';
+            	dt.Minutes = (line[20] - '0') * 10 + line[21] - '0';
+            	dt.Seconds = (line[23] - '0') * 10 + line[24] - '0';
+            	SIM800_MQTT_Date_Time_Callback(&dt);
             }
         }
     }
@@ -1030,6 +1088,9 @@ void SIM800_MQTT_TX_Complete_Callback(void)
 
 /** WAEK callbacks need to define by user app ****/
 __weak void APP_SIM800_Reset_CB(uint8_t reset_ok)
+{
+}
+__weak void APP_SIM800_Date_Time_CB(struct SIM800_Date_Time_t *dt)
 {
 }
 __weak void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
