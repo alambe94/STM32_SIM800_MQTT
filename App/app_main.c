@@ -14,6 +14,8 @@ uint16_t SUB_Packet_ID = 0;
 uint8_t SUB_QOS = 0;
 uint8_t SUB_Flag = 0;
 
+uint16_t MSG_Received_Count = 0;
+
 uint8_t Ping_Flag = 0;
 
 void App_Main(void)
@@ -29,15 +31,15 @@ void App_Main(void)
 
 		if (SIM800_Get_State() == SIM800_RESET_OK)
 		{
-			SIM800_TCP_Connect("airtelgprs.com", "broker.hivemq.com", 1883);
+			SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
 		}
 
 		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
 		{
 			CONN_Flag_t flags = {.C_Flags = 0xC2};
-			flags.Bits.Password = 0;
-			flags.Bits.User_Name = 0;
-			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "bhjsabdhf", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
+			flags.Bits.Password = 1;
+			flags.Bits.User_Name = 1;
+			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "sfsgfsg", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 		}
 
 		if (SIM800_Is_MQTT_Connected())
@@ -55,6 +57,8 @@ void App_Main(void)
 					break;
 				}
 			}
+
+			while(1);
 		}
 	}
 }
@@ -97,5 +101,5 @@ void APP_SIM800_MQTT_MSG_CB(char *topic,
 							uint8_t qos,
 							uint16_t message_id)
 {
-	dup++;
+	MSG_Received_Count++;
 }

@@ -866,6 +866,164 @@ void SIM800_TIM_ISR(void)
   * @brief this is sim800 RX TASK, software triggered by sim800 uart idle interrupt
   *        @see SIM800_RX_Task_Trigger & SIM800_UART_RX_ISR in sim800_uart.c
   */
+void EXTI1_IRQHandler2222(void)
+{
+    while (SIM800_UART_Get_Count())
+    {
+        if (SIM800_State >= SIM800_TCP_CONNECTED)
+        {
+            /** in transparent mode */
+            char rx_chars[32] = "";
+
+            rx_chars[0] = SIM800_UART_Peek_Char();
+
+            if (rx_chars[0] != -1)
+            {
+                /** published from broker received */
+                if ((rx_chars[0] & 0x30) == 0x30)
+                {
+                    uint8_t qos = (rx_chars[0] >> 1) & 0x03;
+                    uint8_t dup = (rx_chars[0] >> 3) & 0x01;
+
+                    uint32_t multiplier = 1;
+                    uint32_t total_len = 0;
+                    uint32_t mesg_len = 0;
+                    uint16_t topic_len = 0;
+                    uint16_t message_id = 0;
+
+                    char topic[32] = "";
+                    /** @warning  large local buffer */
+                    static char msg[1500] = "";
+
+                    do
+                    {
+                        SIM800_UART_Get_Chars(rx_chars, 1, 0);
+                        total_len += (rx_chars[0] & 127) * multiplier;
+                        multiplier *= 128;
+                        if (multiplier > 128 * 128 * 128)
+                        {
+                            break;
+                        }
+                    } while ((rx_chars[0] & 128) != 0);
+
+                    SIM800_UART_Get_Chars(rx_chars, 2, 0);
+                    topic_len = (rx_chars[0] << 8) | rx_chars[1];
+
+                    mesg_len = total_len - topic_len - 2;
+
+                    SIM800_UART_Get_Chars(topic, topic_len, 0);
+
+                    if (qos)
+                    {
+                        SIM800_UART_Get_Chars(rx_chars, 2, 0);
+                        message_id = (rx_chars[0] << 8) | rx_chars[1];
+                        mesg_len -= 2;
+
+                        SIM800_PUBACK_Data.Flag = 1; /** indicates need to send PUBACK*/
+                        SIM800_PUBACK_Data.Message_ID = message_id;
+                    }
+
+                    SIM800_UART_Get_Chars(msg, mesg_len, 0);
+
+                    SIM800_MQTT_Received_Callback(topic, msg, mesg_len, dup, qos, message_id);
+                }
+                else if (rx_chars[0] == 0x20)
+                {
+                    SIM800_UART_Get_Chars(rx_chars, 4, 0);
+                    {
+                        if (rx_chars[0] == 0x20 && rx_chars[1] == 0x02)
+                        {
+                            SIM800_Received_Response = SIM800_RESP_MQTT_CONNACK;
+                            SIM800_MQTT_CONNACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
+                        }
+                    }
+                }
+                else if (rx_chars[0] == 0x40)
+                {
+                    SIM800_UART_Get_Chars(rx_chars, 4, 0);
+                    if (rx_chars[0] == 0x40 && rx_chars[1] == 0x02)
+                    {
+                        SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
+                        SIM800_MQTT_PUBACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
+                    }
+                }
+                else if (rx_chars[0] == 0x90)
+                {
+                    SIM800_UART_Get_Chars(rx_chars, 5, 0);
+                    if (rx_chars[0] == 0x90 && rx_chars[1] == 0x03)
+                    {
+                        SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
+                        SIM800_MQTT_SUBACK_Callback(rx_chars[2] << 8 | rx_chars[3], rx_chars[4]);
+                    }
+                }
+                else if (rx_chars[0] == 0xD0)
+                {
+                    SIM800_UART_Get_Chars(rx_chars, 2, 0);
+                    if (rx_chars[0] == 0xD0 && rx_chars[1] == 0x00)
+                    {
+                        SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
+                        SIM800_MQTT_Ping_Callback();
+                    }
+                }
+                else if (rx_chars[0] == '\r')
+                {
+                    SIM800_UART_Get_Chars(rx_chars, 10, 0);
+                    if (strstr(rx_chars, "\r\nCLOSED\r\n") != NULL)
+                    {
+                        /** TCP connection closed due to inactivity */
+                        /** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
+                        SIM800_State = SIM800_RESET_OK;
+                    }
+                }
+                else
+                {
+                    SIM800_UART_Get_Char();
+                }
+            }
+        }
+        else
+        {
+            /** in AT mode */
+            char line[32] = "";
+
+            SIM800_Get_Response(line, sizeof(line), 0);
+
+            if (strstr(line, "OK"))
+            {
+                SIM800_Received_Response = SIM800_RESP_OK;
+            }
+            else if (strstr(line, "SMS Ready"))
+            {
+                SIM800_Received_Response = SIM800_RESP_SMS_READY;
+            }
+            else if (strstr(line, "+CGATT: 1"))
+            {
+                SIM800_Received_Response = SIM800_RESP_GPRS_READY;
+            }
+            else if (strstr(line, "SHUT OK"))
+            {
+                SIM800_Received_Response = SIM800_RESP_SHUT_OK;
+            }
+            else if (strstr(line, "CONNECT"))
+            {
+                SIM800_Received_Response = SIM800_RESP_CONNECT;
+            }
+            else if (CH_In_STR('.', line) == 3)
+            {
+                SIM800_Received_Response = SIM800_RESP_IP;
+            }
+            else
+            {
+                SIM800_UART_Get_Char();
+            }
+        }
+    }
+}
+
+/**
+  * @brief this is sim800 RX TASK, software triggered by sim800 uart idle interrupt
+  *        @see SIM800_RX_Task_Trigger & SIM800_UART_RX_ISR in sim800_uart.c
+  */
 void EXTI1_IRQHandler(void)
 {
     while (SIM800_UART_Get_Count())
@@ -999,7 +1157,7 @@ void EXTI1_IRQHandler(void)
             {
             case SIM800_RESP_NONE:
                 /** in AT mode when expected response is none and something is received on uart handle those here*/
-                SIM800_UART_Get_Char(0);
+                SIM800_UART_Get_Char();
                 break;
 
             case SIM800_RESP_ANY:

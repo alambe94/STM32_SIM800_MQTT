@@ -24,7 +24,7 @@ static volatile uint8_t RB_Full_Flag;
 /**
  * @brief Init uart used for log
  */
-void SIM800_UART_Init()
+void SIM800_UART_Init(void)
 {
     /** configured in cube @see usart.c*/
 
@@ -38,7 +38,7 @@ void SIM800_UART_Init()
 /**
  * @brief flush ring buffer
  */
-static void RB_Flush()
+static void RB_Flush(void)
 {
     RB_Read_Index = RB_Write_Index;
 }
@@ -48,7 +48,7 @@ static void RB_Flush()
  * @retval return 1 if ring buffer is full
  * @note since data is written by dma, RB_Full_Flag can be not set at proper place. So this function might not useful in this context.
  */
-static uint8_t RB_Is_Full()
+static uint8_t RB_Is_Full(void)
 {
     return RB_Full_Flag;
 }
@@ -57,7 +57,7 @@ static uint8_t RB_Is_Full()
  * @brief check number of chars in ring buffer
  * @retval return number of chars in ring buffer
  */
-static uint32_t RB_Get_Count()
+static uint32_t RB_Get_Count(void)
 {
     if (RB_Is_Full())
         return RB_STORAGE_SIZE;
@@ -70,7 +70,7 @@ static uint32_t RB_Get_Count()
  * @brief check if buffer is empty
  * @retval return 1 if ring buffer is empty
  */
-static uint8_t RB_Is_Empty()
+static uint8_t RB_Is_Empty(void)
 {
     return (RB_Get_Count() == 0);
 }
@@ -79,7 +79,7 @@ static uint8_t RB_Is_Empty()
  * @brief return a char from from ring buffer
  * @retval char return
  */
-static int RB_Get_Char()
+static int RB_Get_Char(void)
 {
     if (RB_Is_Empty())
     {
@@ -92,6 +92,23 @@ static int RB_Get_Char()
 
     if (RB_Read_Index == RB_STORAGE_SIZE)
         RB_Read_Index = 0;
+
+    return temp;
+}
+
+/**
+ * @brief peek a char from from ring buffer
+ * @retval char return
+ */
+static int RB_Peek_Char(void)
+{
+    if (RB_Is_Empty())
+    {
+        /** exception */
+        return -1;
+    }
+
+    uint8_t temp = RB_Storage[RB_Read_Index];
 
     return temp;
 }
@@ -114,7 +131,7 @@ static uint32_t RB_Get_Chars(char *buff, uint32_t cnt, uint32_t timeout)
         tick_now = HAL_GetTick();
     }
 
-    if (tick_now >= tick_timeout)
+    if (tick_now > tick_timeout)
     {
         /** get bytes available within timeout */
         count = RB_Get_Count();
@@ -205,9 +222,17 @@ uint32_t SIM800_UART_Get_Count(void)
  * @brief get character
  * @param timeout
  */
-int SIM800_UART_Get_Char(uint32_t timeout)
+int SIM800_UART_Get_Char(void)
 {
     return RB_Get_Char();
+}
+
+/**
+ * @brief peek character
+ */
+int SIM800_UART_Peek_Char(void)
+{
+    return RB_Peek_Char();
 }
 
 /**
@@ -236,13 +261,13 @@ uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t buff_size, uint32_t timeout
     while (tick_now <= tick_timeout && rx_chars_cnt < buff_size)
     {
         tick_now = HAL_GetTick();
-        rx_char = SIM800_UART_Get_Char(1);
+        rx_char = SIM800_UART_Get_Char();
         if (rx_char != -1)
         {
             /** carriage return found */
             if (rx_char == '\r')
             {
-                SIM800_UART_Get_Char(1); /** remove '\n' */
+                SIM800_UART_Get_Char(); /** remove '\n' */
                 buffer[rx_chars_cnt] = '\0';
                 break;
             }
@@ -260,7 +285,7 @@ uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t buff_size, uint32_t timeout
 /**
  * @brief flus sim800 rx buffer
  */
-void SIM800_UART_Flush_RX()
+void SIM800_UART_Flush_RX(void)
 {
     RB_Flush();
 }
