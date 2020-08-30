@@ -13,23 +13,21 @@
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
 
-enum SIM800_Response_t
+struct SIM800_Response_Flags_t
 {
-    SIM800_RESP_NONE,
-    SIM800_RESP_ANY,
-    SIM800_RESP_OK,
-    SIM800_RESP_SMS_READY,
-    SIM800_RESP_GPRS_READY,
-    SIM800_RESP_SHUT_OK,
-    SIM800_RESP_IP,
-    SIM800_RESP_CONNECT,
+    uint8_t SIM800_RESP_OK;
+    uint8_t SIM800_RESP_SMS_READY;
+    uint8_t SIM800_RESP_CALL_READY;
+    uint8_t SIM800_RESP_GPRS_READY;
+    uint8_t SIM800_RESP_SHUT_OK;
+    uint8_t SIM800_RESP_IP;
+    uint8_t SIM800_RESP_CONNECT;
 
-    SIM800_RESP_MQTT_CONNACK,
-    SIM800_RESP_MQTT_PUBACK,
-    SIM800_RESP_MQTT_SUBACK,
-    SIM800_RESP_MQTT_PINGACK,
-} SIM800_Expected_Response,
-    SIM800_Received_Response;
+    uint8_t SIM800_RESP_MQTT_CONNACK;
+    uint8_t SIM800_RESP_MQTT_PUBACK;
+    uint8_t SIM800_RESP_MQTT_SUBACK;
+    uint8_t SIM800_RESP_MQTT_PINGACK;
+} SIM800_Response_Flags;
 
 /** hold sim800 state */
 static enum SIM800_State_t SIM800_State;
@@ -204,7 +202,6 @@ static SIM800_Status_t _SIM800_Reset(void)
         case 2:
             /** send dummy, so sim800 can auto adjust its baud */
             SIM800_UART_Send_String("AT\r\n");
-            SIM800_Expected_Response = SIM800_RESP_NONE;
             reset_step++;
             next_delay = 100;
             break;
@@ -212,22 +209,22 @@ static SIM800_Status_t _SIM800_Reset(void)
         case 3:
             /** disable echo */
             SIM800_UART_Send_String("ATE0\r\n");
-            SIM800_Expected_Response = SIM800_RESP_NONE;
             reset_step++;
             next_delay = 1000;
             break;
 
         case 4:
             SIM800_UART_Flush_RX();
+            SIM800_Response_Flags.SIM800_RESP_OK = 0;
             reset_step++;
             next_delay = 100;
             break;
 
         case 5:
             /** wait SMS Ready flag */
-            if (SIM800_Received_Response == SIM800_RESP_SMS_READY)
+            if (SIM800_Response_Flags.SIM800_RESP_SMS_READY)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
                 reset_step++;
                 next_delay = 100;
                 retry = 0;
@@ -235,7 +232,6 @@ static SIM800_Status_t _SIM800_Reset(void)
             else
             {
                 next_delay = 2000;
-                SIM800_Expected_Response = SIM800_RESP_SMS_READY;
                 retry++;
                 if (retry == 10)
                 {
@@ -246,9 +242,9 @@ static SIM800_Status_t _SIM800_Reset(void)
 
         case 6:
             /** wait GPRS Service’s status */
-            if (SIM800_Received_Response == SIM800_RESP_GPRS_READY)
+            if (SIM800_Response_Flags.SIM800_RESP_GPRS_READY)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
                 reset_step++;
                 retry = 0;
                 next_delay = 1000;
@@ -256,7 +252,6 @@ static SIM800_Status_t _SIM800_Reset(void)
             else
             {
                 SIM800_UART_Send_String("AT+CGATT?\r\n");
-                SIM800_Expected_Response = SIM800_RESP_GPRS_READY;
                 next_delay = 3000;
                 retry++;
                 if (retry == 20)
@@ -271,6 +266,7 @@ static SIM800_Status_t _SIM800_Reset(void)
             reset_step = 0;
             retry = 0;
             sim800_result = SIM800_SUCCESS;
+            SIM800_Response_Flags.SIM800_RESP_OK = 0;
             break;
         }
     }
@@ -324,7 +320,6 @@ static uint8_t _SIM800_TCP_Connect()
         {
         case 0:
             SIM800_UART_Send_String("AT+CIPSHUT\r\n");
-            SIM800_Expected_Response = SIM800_RESP_SHUT_OK;
             sim800_result = SIM800_BUSY;
             next_delay = 10;
             tcp_step++;
@@ -332,11 +327,10 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 1:
             /** check response of previous cmd (AT+CIPSHUT) */
-            if (SIM800_Received_Response == SIM800_RESP_SHUT_OK)
+            if (SIM800_Response_Flags.SIM800_RESP_SHUT_OK)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
                 SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
-                SIM800_Expected_Response = SIM800_RESP_OK;
                 next_delay = 10;
                 tcp_step++;
             }
@@ -348,12 +342,11 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 2:
             /** check response of previous cmd (AT+CIPMODE=1) */
-            if (SIM800_Received_Response == SIM800_RESP_OK)
+            if (SIM800_Response_Flags.SIM800_RESP_OK)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** assemble sim apn */
                 SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", _TCP_Data._SIM_APN);
-                SIM800_Expected_Response = SIM800_RESP_OK;
                 next_delay = 3000;
                 tcp_step++;
             }
@@ -365,12 +358,11 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 3:
             /** check response of previous cmd (AT+CSTT=) */
-            if (SIM800_Received_Response == SIM800_RESP_OK)
+            if (SIM800_Response_Flags.SIM800_RESP_OK)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** Bring up wireless connection (GPRS or CSD) */
                 SIM800_UART_Send_String("AT+CIICR\r\n");
-                SIM800_Expected_Response = SIM800_RESP_OK;
                 next_delay = 1000;
                 tcp_step++;
             }
@@ -382,12 +374,11 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 4:
             /** check response of previous cmd (AT+CIICR) */
-            if (SIM800_Received_Response == SIM800_RESP_OK)
+            if (SIM800_Response_Flags.SIM800_RESP_OK)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** Get local IP address */
                 SIM800_UART_Send_String("AT+CIFSR\r\n");
-                SIM800_Expected_Response = SIM800_RESP_IP;
                 next_delay = 100;
                 tcp_step++;
             }
@@ -399,14 +390,13 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 5:
             /** check response of previous cmd (AT+CIFSR) */
-            if (SIM800_Received_Response == SIM800_RESP_IP)
+            if (SIM800_Response_Flags.SIM800_RESP_IP)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_IP = 0;
                 /** assemble server ip and port */
                 SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
                                    _TCP_Data._Broker,
                                    _TCP_Data._Port);
-                SIM800_Expected_Response = SIM800_RESP_CONNECT;
                 next_delay = 1000;
                 tcp_step++;
             }
@@ -418,9 +408,9 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 6:
             /** check response of previous cmd (AT+CIPSTART) */
-            if (SIM800_Received_Response == SIM800_RESP_CONNECT)
+            if (SIM800_Response_Flags.SIM800_RESP_CONNECT)
             {
-                SIM800_Received_Response = SIM800_RESP_NONE;
+                SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
                 sim800_result = SIM800_SUCCESS;
                 next_delay = 100;
                 tcp_step = 0;
@@ -521,8 +511,6 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
         }
     }
 
-    SIM800_Expected_Response = SIM800_RESP_MQTT_CONNACK;
-
     SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
 
     return 1;
@@ -564,8 +552,6 @@ uint8_t SIM800_MQTT_Ping(void)
 
     SIM800_UART_Send_Char(0xC0); /** MQTT ping */
     SIM800_UART_Send_Char(0x00);
-
-    SIM800_Expected_Response = SIM800_RESP_MQTT_PINGACK;
 
     SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
 
@@ -623,13 +609,10 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     SIM800_UART_Send_String(topic);
 
-    SIM800_Expected_Response = SIM800_RESP_NONE;
-
     if (qos)
     {
         SIM800_UART_Send_Char(message_id >> 8);
         SIM800_UART_Send_Char(message_id & 0xFF);
-        SIM800_Expected_Response = SIM800_RESP_MQTT_PUBACK;
     }
 
     if (message_len > 64)
@@ -689,8 +672,6 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
     SIM800_UART_Send_String(topic);
 
     SIM800_UART_Send_Char(qos);
-
-    SIM800_Expected_Response = SIM800_RESP_MQTT_SUBACK;
 
     SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
 
@@ -866,7 +847,7 @@ void SIM800_TIM_ISR(void)
   * @brief this is sim800 RX TASK, software triggered by sim800 uart idle interrupt
   *        @see SIM800_RX_Task_Trigger & SIM800_UART_RX_ISR in sim800_uart.c
   */
-void EXTI1_IRQHandler2222(void)
+void EXTI1_IRQHandler(void)
 {
     while (SIM800_UART_Get_Count())
     {
@@ -933,7 +914,7 @@ void EXTI1_IRQHandler2222(void)
                     {
                         if (rx_chars[0] == 0x20 && rx_chars[1] == 0x02)
                         {
-                            SIM800_Received_Response = SIM800_RESP_MQTT_CONNACK;
+                            SIM800_Response_Flags.SIM800_RESP_MQTT_CONNACK = 1;
                             SIM800_MQTT_CONNACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
                         }
                     }
@@ -943,7 +924,7 @@ void EXTI1_IRQHandler2222(void)
                     SIM800_UART_Get_Chars(rx_chars, 4, 0);
                     if (rx_chars[0] == 0x40 && rx_chars[1] == 0x02)
                     {
-                        SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
+                        SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 1;
                         SIM800_MQTT_PUBACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
                     }
                 }
@@ -952,7 +933,7 @@ void EXTI1_IRQHandler2222(void)
                     SIM800_UART_Get_Chars(rx_chars, 5, 0);
                     if (rx_chars[0] == 0x90 && rx_chars[1] == 0x03)
                     {
-                        SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
+                        SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 1;
                         SIM800_MQTT_SUBACK_Callback(rx_chars[2] << 8 | rx_chars[3], rx_chars[4]);
                     }
                 }
@@ -961,7 +942,7 @@ void EXTI1_IRQHandler2222(void)
                     SIM800_UART_Get_Chars(rx_chars, 2, 0);
                     if (rx_chars[0] == 0xD0 && rx_chars[1] == 0x00)
                     {
-                        SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
+                        SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 1;
                         SIM800_MQTT_Ping_Callback();
                     }
                 }
@@ -988,237 +969,33 @@ void EXTI1_IRQHandler2222(void)
 
             SIM800_Get_Response(line, sizeof(line), 0);
 
-            if (strstr(line, "OK"))
+            if (strncmp(line, "OK", sizeof(line)) == 0)
             {
-                SIM800_Received_Response = SIM800_RESP_OK;
+                SIM800_Response_Flags.SIM800_RESP_OK = 1;
             }
-            else if (strstr(line, "SMS Ready"))
+            else if (strncmp(line, "Call Ready", sizeof(line) == 00))
             {
-                SIM800_Received_Response = SIM800_RESP_SMS_READY;
+                SIM800_Response_Flags.SIM800_RESP_CALL_READY = 1;
             }
-            else if (strstr(line, "+CGATT: 1"))
+            else if (strncmp(line, "SMS Ready", sizeof(line)) == 0)
             {
-                SIM800_Received_Response = SIM800_RESP_GPRS_READY;
+                SIM800_Response_Flags.SIM800_RESP_SMS_READY = 1;
             }
-            else if (strstr(line, "SHUT OK"))
+            else if (strncmp(line, "+CGATT: 1", sizeof(line)) == 0)
             {
-                SIM800_Received_Response = SIM800_RESP_SHUT_OK;
+                SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 1;
             }
-            else if (strstr(line, "CONNECT"))
+            else if (strncmp(line, "SHUT OK", sizeof(line)) == 0)
             {
-                SIM800_Received_Response = SIM800_RESP_CONNECT;
+                SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 1;
+            }
+            else if (strncmp(line, "CONNECT", sizeof(line)) == 0)
+            {
+                SIM800_Response_Flags.SIM800_RESP_CONNECT = 1;
             }
             else if (CH_In_STR('.', line) == 3)
             {
-                SIM800_Received_Response = SIM800_RESP_IP;
-            }
-            else
-            {
-                SIM800_UART_Get_Char();
-            }
-        }
-    }
-}
-
-/**
-  * @brief this is sim800 RX TASK, software triggered by sim800 uart idle interrupt
-  *        @see SIM800_RX_Task_Trigger & SIM800_UART_RX_ISR in sim800_uart.c
-  */
-void EXTI1_IRQHandler(void)
-{
-    while (SIM800_UART_Get_Count())
-    {
-        if (SIM800_State >= SIM800_TCP_CONNECTED)
-        {
-            /** in transparent mode */
-            char rx_chars[32] = "";
-
-            switch (SIM800_Expected_Response)
-            {
-            case SIM800_RESP_MQTT_CONNACK:
-                SIM800_UART_Get_Chars(rx_chars, 4, 0);
-                {
-                    if (rx_chars[0] == 0x20 && rx_chars[1] == 0x02)
-                    {
-                        SIM800_Received_Response = SIM800_RESP_MQTT_CONNACK;
-                        SIM800_Expected_Response = SIM800_RESP_NONE;
-                        SIM800_MQTT_CONNACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
-                    }
-                }
-                break;
-
-            case SIM800_RESP_MQTT_PUBACK:
-                SIM800_UART_Get_Chars(rx_chars, 4, 0);
-                if (rx_chars[0] == 0x40 && rx_chars[1] == 0x02)
-                {
-                    SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                    SIM800_MQTT_PUBACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
-                }
-                break;
-
-            case SIM800_RESP_MQTT_SUBACK:
-                SIM800_UART_Get_Chars(rx_chars, 5, 0);
-                if (rx_chars[0] == 0x90 && rx_chars[1] == 0x03)
-                {
-                    SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                    SIM800_MQTT_SUBACK_Callback(rx_chars[2] << 8 | rx_chars[3], rx_chars[4]);
-                }
-                break;
-
-            case SIM800_RESP_MQTT_PINGACK:
-                SIM800_UART_Get_Chars(rx_chars, 2, 0);
-                if (rx_chars[0] == 0xD0 && rx_chars[1] == 0x00)
-                {
-                    SIM800_Received_Response = SIM800_RESP_MQTT_PUBACK;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                    SIM800_MQTT_Ping_Callback();
-                }
-                break;
-            /** in transparent mode when expected response is none and something is received on uart handle those here*/
-            case SIM800_RESP_NONE:
-                SIM800_UART_Get_Chars(rx_chars, 1, 0);
-                if ((rx_chars[0] & 0x30) == 0x30)
-                {
-                    uint8_t qos = (rx_chars[0] >> 1) & 0x03;
-                    uint8_t dup = (rx_chars[0] >> 3) & 0x01;
-
-                    uint32_t multiplier = 1;
-                    uint32_t total_len = 0;
-                    uint32_t mesg_len = 0;
-                    uint16_t topic_len = 0;
-                    uint16_t message_id = 0;
-
-                    char topic[32] = "";
-                    /** @warning  large local buffer */
-                    static char msg[1500] = "";
-
-                    do
-                    {
-                        SIM800_UART_Get_Chars(rx_chars, 1, 0);
-                        total_len += (rx_chars[0] & 127) * multiplier;
-                        multiplier *= 128;
-                        if (multiplier > 128 * 128 * 128)
-                        {
-                            break;
-                        }
-                    } while ((rx_chars[0] & 128) != 0);
-
-                    SIM800_UART_Get_Chars(rx_chars, 2, 0);
-                    topic_len = (rx_chars[0] << 8) | rx_chars[1];
-
-                    mesg_len = total_len - topic_len - 2;
-
-                    SIM800_UART_Get_Chars(topic, topic_len, 0);
-
-                    if (qos)
-                    {
-                        SIM800_UART_Get_Chars(rx_chars, 2, 0);
-                        message_id = (rx_chars[0] << 8) | rx_chars[1];
-                        mesg_len -= 2;
-
-                        SIM800_PUBACK_Data.Flag = 1; /** indicates need to send PUBACK*/
-                        SIM800_PUBACK_Data.Message_ID = message_id;
-                    }
-
-                    SIM800_UART_Get_Chars(msg, mesg_len, 0);
-
-                    SIM800_MQTT_Received_Callback(topic, msg, mesg_len, dup, qos, message_id);
-                }
-                else if (rx_chars[0] == '\r') /** check for '\r\nCLOSED\r\n' */
-                {
-                    SIM800_UART_Get_Chars(rx_chars, 9, 0);
-                    if (strstr(rx_chars, "\nCLOSED\r\n") != NULL)
-                    {
-                        /** TCP connection closed due to inactivity */
-                        /** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
-                        SIM800_State = SIM800_RESET_OK;
-                    }
-                }
-                break;
-
-            case SIM800_RESP_ANY:
-            case SIM800_RESP_OK:
-            case SIM800_RESP_SMS_READY:
-            case SIM800_RESP_GPRS_READY:
-            case SIM800_RESP_SHUT_OK:
-            case SIM800_RESP_IP:
-            case SIM800_RESP_CONNECT:
-                break;
-            }
-        }
-        else
-        {
-            /** in AT mode */
-            char line[32] = "";
-
-            switch (SIM800_Expected_Response)
-            {
-            case SIM800_RESP_NONE:
-                /** in AT mode when expected response is none and something is received on uart handle those here*/
-                SIM800_UART_Get_Char();
-                break;
-
-            case SIM800_RESP_ANY:
-                break;
-
-            case SIM800_RESP_OK:
-                if (SIM800_Check_Response("OK", 0))
-                {
-                    SIM800_Received_Response = SIM800_RESP_OK;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                }
-                break;
-
-            case SIM800_RESP_SMS_READY:
-                if (SIM800_Check_Response("SMS Ready", 0))
-                {
-                    SIM800_Received_Response = SIM800_RESP_SMS_READY;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                }
-                break;
-
-            case SIM800_RESP_GPRS_READY:
-                if (SIM800_Check_Response("+CGATT: 1", 0))
-                {
-                    SIM800_Received_Response = SIM800_RESP_GPRS_READY;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                }
-                break;
-
-            case SIM800_RESP_SHUT_OK:
-                if (SIM800_Check_Response("SHUT OK", 0))
-                {
-                    SIM800_Received_Response = SIM800_RESP_SHUT_OK;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                }
-                break;
-
-            case SIM800_RESP_IP:
-                if (SIM800_Get_Response(line, sizeof(line), 0))
-                {
-                    if (CH_In_STR('.', line) == 3)
-                    { /** ip format xxx.xxx.xxx.xxx */
-                        SIM800_Received_Response = SIM800_RESP_IP;
-                        SIM800_Expected_Response = SIM800_RESP_NONE;
-                    }
-                }
-                break;
-
-            case SIM800_RESP_CONNECT:
-                if (SIM800_Check_Response("CONNECT", 0))
-                {
-                    SIM800_Received_Response = SIM800_RESP_CONNECT;
-                    SIM800_Expected_Response = SIM800_RESP_NONE;
-                }
-                break;
-
-            case SIM800_RESP_MQTT_CONNACK:
-            case SIM800_RESP_MQTT_PUBACK:
-            case SIM800_RESP_MQTT_SUBACK:
-            case SIM800_RESP_MQTT_PINGACK:
-                break;
+                SIM800_Response_Flags.SIM800_RESP_IP = 1;
             }
         }
     }
