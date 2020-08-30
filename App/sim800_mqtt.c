@@ -866,6 +866,8 @@ void EXTI1_IRQHandler(void)
                 /** published from broker received */
                 if ((rx_chars[0] & 0x30) == 0x30)
                 {
+                    SIM800_UART_Get_Char();
+
                     uint8_t qos = (rx_chars[0] >> 1) & 0x03;
                     uint8_t dup = (rx_chars[0] >> 3) & 0x01;
 
@@ -895,6 +897,11 @@ void EXTI1_IRQHandler(void)
 
                     mesg_len = total_len - topic_len - 2;
 
+                    if (topic_len > sizeof(topic))
+                    {
+                        topic_len = sizeof(topic);
+                        /**  TODO handle this exeption */
+                    }
                     SIM800_UART_Get_Chars(topic, topic_len, 0);
 
                     if (qos)
@@ -907,6 +914,11 @@ void EXTI1_IRQHandler(void)
                         SIM800_PUBACK_Data.Message_ID = message_id;
                     }
 
+                    if (mesg_len > sizeof(msg))
+                    {
+                        mesg_len = sizeof(msg);
+                        /**  TODO handle this exeption */
+                    }
                     SIM800_UART_Get_Chars(msg, mesg_len, 0);
 
                     SIM800_MQTT_Received_Callback(topic, msg, mesg_len, dup, qos, message_id);
