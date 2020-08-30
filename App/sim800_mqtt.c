@@ -408,9 +408,10 @@ static uint8_t _SIM800_TCP_Connect()
 
         case 6:
             /** check response of previous cmd (AT+CIPSTART) */
-            if (SIM800_Response_Flags.SIM800_RESP_CONNECT)
+            if (SIM800_Response_Flags.SIM800_RESP_CONNECT && SIM800_Response_Flags.SIM800_RESP_OK)
             {
                 SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
+                SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 sim800_result = SIM800_SUCCESS;
                 next_delay = 100;
                 tcp_step = 0;
