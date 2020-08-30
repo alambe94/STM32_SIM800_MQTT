@@ -457,16 +457,18 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
     uint16_t user_name_len = 0;
     uint16_t password_len = 0;
 
+    uint32_t packet_len = 2 + protocol_name_len + 1 + 1 + 2 + 2 + my_id_len;
+
     if (flags.Bits.User_Name && user_name != NULL)
     {
         user_name_len = strlen(user_name);
+        packet_len += 2 + user_name_len;
         if (flags.Bits.Password && password != NULL)
         {
             password_len = strlen(password);
+            packet_len += 2 + password_len;
         }
     }
-
-    uint32_t packet_len = 2 + protocol_name_len + 2 + my_id_len + 2 + user_name_len + 2 + password_len + 4;
 
     SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 

@@ -31,14 +31,14 @@ void App_Main(void)
 
 		if (SIM800_Get_State() == SIM800_RESET_OK)
 		{
-			SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
+			SIM800_TCP_Connect("airtelgprs.com", "jarsservices.info", 1883);
 		}
 
 		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
 		{
 			CONN_Flag_t flags = {.C_Flags = 0xC2};
-			flags.Bits.Password = 1;
-			flags.Bits.User_Name = 1;
+			flags.Bits.Password = 0;
+			flags.Bits.User_Name = 0;
 			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "sfsgfsg", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 		}
 
@@ -60,6 +60,7 @@ void App_Main(void)
 
 			while(1);
 		}
+
 	}
 }
 
