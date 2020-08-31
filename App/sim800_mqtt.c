@@ -190,14 +190,14 @@ static SIM800_Status_t _SIM800_Reset(void)
 {
     static SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    static uint8_t reset_step = 0;
-    static uint8_t retry = 0;
-
     static uint32_t next_delay = 0;
     static uint32_t loop_ticks = 0;
 
     if (HAL_GetTick() - loop_ticks > next_delay)
     {
+        static uint8_t reset_step = 0;
+        static uint8_t retry = 0;
+
         loop_ticks = HAL_GetTick();
 
         switch (reset_step)
@@ -347,13 +347,13 @@ static uint8_t _SIM800_TCP_Connect()
 {
     static SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    static uint8_t tcp_step = 0;
-
     static uint32_t next_delay = 0;
     static uint32_t loop_ticks = 0;
 
     if (HAL_GetTick() - loop_ticks > next_delay)
     {
+        static uint8_t tcp_step = 0;
+
         loop_ticks = HAL_GetTick();
 
         switch (tcp_step)
