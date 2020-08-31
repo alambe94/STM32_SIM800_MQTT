@@ -4,7 +4,7 @@
 
 uint32_t MQTT_Error_Count;
 
-char Packet[1408];
+char Packet[1024];
 
 uint8_t RST_Flag = 0;
 uint8_t TCP_Flag = 0;
@@ -54,7 +54,7 @@ void App_Main(void)
 		{
 			for (uint32_t i = 0; i < 10; i++)
 			{
-				if (SIM800_MQTT_Publish("alsaad/feeds/Logger", Packet, sizeof(Packet), 0, 1, 0, i))
+				if (SIM800_MQTT_Publish("alsaad/feeds/abcd", Packet, sizeof(Packet), 0, 1, 0, i))
 				{
 					HAL_Delay(1000);
 				}

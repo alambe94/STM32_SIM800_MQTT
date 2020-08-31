@@ -30,9 +30,6 @@ struct SIM800_Response_Flags_t
     uint8_t SIM800_RESP_MQTT_PINGACK;
 } SIM800_Response_Flags;
 
-/** hold sim800 state */
-static enum SIM800_State_t SIM800_State;
-
 typedef enum SIM800_Status_t
 {
     SIM800_SUCCESS,
@@ -45,6 +42,9 @@ struct SIM800_PUBACK_Data_t
     uint8_t Flag;
     uint16_t Message_ID;
 } SIM800_PUBACK_Data;
+
+/** hold sim800 state */
+static enum SIM800_State_t SIM800_State;
 
 /**
   * @brief  return ch occurrence in string
@@ -166,13 +166,13 @@ enum SIM800_State_t SIM800_Get_State(void)
  */
 uint8_t SIM800_Get_Time(void)
 {
-	if(SIM800_State < SIM800_TCP_CONNECTED)
-	{
-		SIM800_UART_Send_String("AT+CCLK?\r\n");
-		return 1;
-	}
+    if (SIM800_State < SIM800_TCP_CONNECTED)
+    {
+        SIM800_UART_Send_String("AT+CCLK?\r\n");
+        return 1;
+    }
 
-	return 0;
+    return 0;
 }
 
 /**
@@ -281,7 +281,7 @@ static SIM800_Status_t _SIM800_Reset(void)
             /** wait for network time */
             if (SIM800_Response_Flags.SIM800_RESP_TIME)
             {
-            	SIM800_Response_Flags.SIM800_RESP_TIME = 0;
+                SIM800_Response_Flags.SIM800_RESP_TIME = 0;
                 reset_step++;
                 retry = 0;
                 next_delay = 1000;
@@ -296,7 +296,7 @@ static SIM800_Status_t _SIM800_Reset(void)
                     sim800_result = SIM800_SUCCESS; /** return success even if time failed */
                 }
             }
-        	break;
+            break;
 
         case 8:
             SIM800_UART_Flush_RX();
@@ -472,7 +472,7 @@ static uint8_t _SIM800_TCP_Connect()
  * @param keep_alive keep alive interval in seconds
  * @param my_id clients unique ID across mqtt broker
  * @param user_name user name for mqtt broker
- * @param password fpassword for mqtt broker
+ * @param password password for mqtt broker
  * @retval return 1 if command can be executed
  */
 uint8_t SIM800_MQTT_Connect(char *protocol_name,
@@ -820,19 +820,19 @@ void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
  * @brief called when message is received
  * @param topic topic on which message is received
  * @param message received message
- * @param mesg_len message length
+ * @param msg_len message length
  * @param dup duplicates flag
  * @param qos qos of received message
  * @param message_id message id
  */
 void SIM800_MQTT_Received_Callback(char *topic,
                                    char *message,
-                                   uint32_t mesg_len,
+                                   uint32_t msg_len,
                                    uint8_t dup,
                                    uint8_t qos,
                                    uint16_t message_id)
 {
-    APP_SIM800_MQTT_MSG_CB(topic, message, mesg_len, dup, qos, message_id);
+    APP_SIM800_MQTT_MSG_CB(topic, message, msg_len, dup, qos, message_id);
 }
 
 /************************* ISR ***************************/
@@ -919,7 +919,7 @@ void EXTI1_IRQHandler(void)
 
                     uint32_t multiplier = 1;
                     uint32_t total_len = 0;
-                    uint32_t mesg_len = 0;
+                    uint32_t msg_len = 0;
                     uint16_t topic_len = 0;
                     uint16_t message_id = 0;
 
@@ -941,7 +941,7 @@ void EXTI1_IRQHandler(void)
                     SIM800_UART_Get_Chars(rx_chars, 2, 0);
                     topic_len = (rx_chars[0] << 8) | rx_chars[1];
 
-                    mesg_len = total_len - topic_len - 2;
+                    msg_len = total_len - topic_len - 2;
 
                     if (topic_len > sizeof(topic))
                     {
@@ -954,20 +954,20 @@ void EXTI1_IRQHandler(void)
                     {
                         SIM800_UART_Get_Chars(rx_chars, 2, 0);
                         message_id = (rx_chars[0] << 8) | rx_chars[1];
-                        mesg_len -= 2;
+                        msg_len -= 2;
 
                         SIM800_PUBACK_Data.Flag = 1; /** indicates need to send PUBACK*/
                         SIM800_PUBACK_Data.Message_ID = message_id;
                     }
 
-                    if (mesg_len > sizeof(msg))
+                    if (msg_len > sizeof(msg))
                     {
-                        mesg_len = sizeof(msg);
+                        msg_len = sizeof(msg);
                         /**  TODO handle this exception */
                     }
-                    SIM800_UART_Get_Chars(msg, mesg_len, 0);
+                    SIM800_UART_Get_Chars(msg, msg_len, 0);
 
-                    SIM800_MQTT_Received_Callback(topic, msg, mesg_len, dup, qos, message_id);
+                    SIM800_MQTT_Received_Callback(topic, msg, msg_len, dup, qos, message_id);
                 }
                 else if (rx_chars[0] == 0x20)
                 {
@@ -1060,15 +1060,16 @@ void EXTI1_IRQHandler(void)
             }
             else if (strncmp(line, "+CCLK: ", 7) == 0)
             {
-            	struct SIM800_Date_Time_t dt;
-            	dt.Year = (line[8] - '0') * 10 + line[9] - '0';
-            	dt.Month = (line[11] - '0') * 10 + line[12] - '0';
-            	dt.Date = (line[14] - '0') * 10 + line[15] - '0';
+                SIM800_Response_Flags.SIM800_RESP_TIME = 1;
+                struct SIM800_Date_Time_t dt;
+                dt.Year = (line[8] - '0') * 10 + line[9] - '0';
+                dt.Month = (line[11] - '0') * 10 + line[12] - '0';
+                dt.Date = (line[14] - '0') * 10 + line[15] - '0';
 
-            	dt.Hours = (line[17] - '0') * 10 + line[18] - '0';
-            	dt.Minutes = (line[20] - '0') * 10 + line[21] - '0';
-            	dt.Seconds = (line[23] - '0') * 10 + line[24] - '0';
-            	SIM800_MQTT_Date_Time_Callback(&dt);
+                dt.Hours = (line[17] - '0') * 10 + line[18] - '0';
+                dt.Minutes = (line[20] - '0') * 10 + line[21] - '0';
+                dt.Seconds = (line[23] - '0') * 10 + line[24] - '0';
+                SIM800_MQTT_Date_Time_Callback(&dt);
             }
         }
     }
@@ -1110,7 +1111,7 @@ __weak void APP_SIM800_MQTT_Ping_CB(void)
 }
 __weak void APP_SIM800_MQTT_MSG_CB(char *topic,
                                    char *message,
-                                   uint32_t mesg_len,
+                                   uint32_t msg_len,
                                    uint8_t dup,
                                    uint8_t qos,
                                    uint16_t message_id)
