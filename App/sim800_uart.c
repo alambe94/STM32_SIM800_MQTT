@@ -256,12 +256,11 @@ uint32_t SIM800_UART_Get_Line(char *buffer, uint32_t buff_size, uint32_t timeout
     uint32_t tick_now = HAL_GetTick();
     uint32_t tick_timeout = tick_now + timeout;
     uint32_t rx_chars_cnt = 0;
-    int rx_char;
 
     while (tick_now <= tick_timeout && rx_chars_cnt < buff_size)
     {
         tick_now = HAL_GetTick();
-        rx_char = SIM800_UART_Get_Char();
+        int rx_char = SIM800_UART_Get_Char();
         if (rx_char != -1)
         {
             /** carriage return found */
