@@ -46,7 +46,7 @@ static void RB_Flush(void)
 /**
  * @brief check if ring buffer is full
  * @retval return 1 if ring buffer is full
- * @note since data is written by dma, RB_Full_Flag can be not set at proper place. So this function might not useful in this context.
+ * @note since data is written by dma, RB_Full_Flag can be not set at proper place. So this function might not be useful in this context.
  */
 static uint8_t RB_Is_Full(void)
 {

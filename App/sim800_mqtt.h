@@ -46,6 +46,8 @@ struct SIM800_Date_Time_t
 
 void SIM800_Init(void);
 
+uint8_t SIM800_Get_Time(void);
+
 uint8_t SIM800_Reset(void);
 
 void SIM800_RX_Task_Trigger(void);

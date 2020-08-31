@@ -251,6 +251,7 @@ static SIM800_Status_t _SIM800_Reset(void)
                 retry++;
                 if (retry == 10)
                 {
+                    reset_step = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -272,6 +273,7 @@ static SIM800_Status_t _SIM800_Reset(void)
                 retry++;
                 if (retry == 20)
                 {
+                    reset_step = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -293,6 +295,7 @@ static SIM800_Status_t _SIM800_Reset(void)
                 retry++;
                 if (retry == 2)
                 {
+                    reset_step = 0;
                     sim800_result = SIM800_SUCCESS; /** return success even if time failed */
                 }
             }
@@ -373,6 +376,7 @@ static uint8_t _SIM800_TCP_Connect()
             }
             else
             {
+                tcp_step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -389,6 +393,7 @@ static uint8_t _SIM800_TCP_Connect()
             }
             else
             {
+                tcp_step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -405,6 +410,7 @@ static uint8_t _SIM800_TCP_Connect()
             }
             else
             {
+                tcp_step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -421,6 +427,7 @@ static uint8_t _SIM800_TCP_Connect()
             }
             else
             {
+                tcp_step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -439,6 +446,7 @@ static uint8_t _SIM800_TCP_Connect()
             }
             else
             {
+                tcp_step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -455,6 +463,7 @@ static uint8_t _SIM800_TCP_Connect()
             }
             else
             {
+                tcp_step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -734,6 +743,7 @@ void SIM800_Reset_complete_Callback(SIM800_Status_t status)
     else
     {
         // failed
+        SIM800_State = SIM800_IDLE;
         APP_SIM800_Reset_CB(0);
     }
 }
