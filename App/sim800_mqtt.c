@@ -332,8 +332,8 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
     if (SIM800_State == SIM800_RESET_OK)
     {
-        strncpy(_TCP_Data._SIM_APN, sim_apn, sizeof(_TCP_Data._SIM_APN));
-        strncpy(_TCP_Data._Broker, broker, sizeof(_TCP_Data._Broker));
+        snprintf(_TCP_Data._SIM_APN, sizeof(_TCP_Data._SIM_APN), "%s", sim_apn);
+        snprintf(_TCP_Data._Broker, sizeof(_TCP_Data._Broker), "%s", broker);
         _TCP_Data._Port = port;
 
         SIM800_State = SIM800_TCP_CONNECTING;
@@ -497,8 +497,8 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
         return 0;
     }
 
-    uint8_t protocol_name_len = strlen(protocol_name);
-    uint8_t my_id_len = strlen(my_id);
+    uint8_t protocol_name_len = strnlen(protocol_name, 8); /** max length is set to arbitrary suitable value */
+    uint8_t my_id_len = strnlen(my_id, 64);
 
     uint16_t user_name_len = 0;
     uint16_t password_len = 0;
@@ -507,11 +507,11 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     if (flags.Bits.User_Name && user_name != NULL)
     {
-        user_name_len = strlen(user_name);
+        user_name_len = strnlen(user_name, 64);
         packet_len += 2 + user_name_len;
         if (flags.Bits.Password && password != NULL)
         {
-            password_len = strlen(password);
+            password_len = strnlen(password, 128);
             packet_len += 2 + password_len;
         }
     }
@@ -627,7 +627,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
         return 0;
     }
 
-    uint8_t topic_len = strlen(topic);
+    uint8_t topic_len = strnlen(topic, 128);
 
     uint8_t pub = 0x30 | ((dup & 0x01) << 3) | ((qos & 0x03) << 1) | (retain & 0x01);
 
@@ -693,7 +693,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
         return 0;
     }
 
-    uint8_t topic_len = strlen(topic);
+    uint8_t topic_len = strnlen(topic, 128);
 
     uint32_t packet_len = 2 + 2 + topic_len + 1;
 
