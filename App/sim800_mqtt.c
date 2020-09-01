@@ -177,7 +177,7 @@ uint8_t SIM800_Get_Time(void)
 
 /**
  * @brief reset sim800
- *        result callback is @see SIM800_Reset_complete_Callback
+ *        result callback is @see SIM800_Reset_Complete_Callback
  * @param none
  * @retval return 1 if command can be executed     
  */
@@ -316,7 +316,7 @@ static SIM800_Status_t _SIM800_Reset(void)
 
 /**
  * @brief open tcp connection to mqtt broker
- *        result callback is @see SIM800_TCP_CONN_complete_Callback
+ *        result callback is @see SIM800_TCP_CONN_Complete_Callback
  * @param sim_apn simcard apn such "www" for vodafone and "airtelgprs.com" for airtel
  * @param broker broker mqtt address
  * @param port   broker mqtt port
@@ -733,7 +733,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
  *        callback response for @see SIM800_Reset
  * @param code reset success(GPRS is active) of failed
  */
-void SIM800_Reset_complete_Callback(SIM800_Status_t status)
+void SIM800_Reset_Complete_Callback(SIM800_Status_t status)
 {
     if (status == SIM800_SUCCESS)
     {
@@ -753,7 +753,7 @@ void SIM800_Reset_complete_Callback(SIM800_Status_t status)
  *        callback response for @see SIM800_TCP_Connect
  * @param code TCP connection success of failed
  */
-void SIM800_TCP_CONN_complete_Callback(SIM800_Status_t status)
+void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
 {
     if (status == SIM800_SUCCESS)
     {
@@ -863,7 +863,7 @@ void SIM800_TIM_ISR(void)
         sim800_result = _SIM800_Reset();
         if (sim800_result == SIM800_SUCCESS || sim800_result == SIM800_FAILED)
         {
-            SIM800_Reset_complete_Callback(sim800_result);
+            SIM800_Reset_Complete_Callback(sim800_result);
         }
         else if (sim800_result == SIM800_BUSY)
         {
@@ -877,7 +877,7 @@ void SIM800_TIM_ISR(void)
         sim800_result = _SIM800_TCP_Connect();
         if (sim800_result == SIM800_SUCCESS || sim800_result == SIM800_FAILED)
         {
-            SIM800_TCP_CONN_complete_Callback(sim800_result);
+            SIM800_TCP_CONN_Complete_Callback(sim800_result);
         }
         else if (sim800_result == SIM800_BUSY)
         {
