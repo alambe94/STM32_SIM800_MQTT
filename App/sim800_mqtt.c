@@ -149,7 +149,7 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_Is_MQTT_Connected(void)
 {
-    return (SIM800_State >= SIM800_MQTT_RECEIVING);
+    return (SIM800_State >= SIM800_MQTT_CONNECTED);
 }
 
 /**
@@ -505,6 +505,8 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     uint32_t packet_len = 2 + protocol_name_len + 1 + 1 + 2 + 2 + my_id_len;
 
+    SIM800_State = SIM800_MQTT_CONNECTING;
+
     if (flags.Bits.User_Name && user_name != NULL)
     {
         user_name_len = strnlen(user_name, 64);
@@ -515,8 +517,6 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
             packet_len += 2 + password_len;
         }
     }
-
-    SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0x10); /** MQTT connect fixed header */
 
@@ -560,8 +560,6 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
         }
     }
 
-    SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
-
     return 1;
 }
 
@@ -602,7 +600,7 @@ uint8_t SIM800_MQTT_Ping(void)
     SIM800_UART_Send_Char(0xC0); /** MQTT ping */
     SIM800_UART_Send_Char(0x00);
 
-    SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
+    SIM800_State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
 
     return 1;
 }
@@ -673,7 +671,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
     {
         /** blocking */
         SIM800_UART_Send_Bytes(message, message_len);
-        SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
+        SIM800_State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
     }
 
     return 1;
@@ -722,7 +720,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
     SIM800_UART_Send_Char(qos);
 
-    SIM800_State = SIM800_MQTT_RECEIVING; /** indicates uart tx is done */
+    SIM800_State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
 
     return 1;
 }
@@ -777,7 +775,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
     if (code == 0)
     {
-        SIM800_State = SIM800_MQTT_RECEIVING;
+        SIM800_State = SIM800_MQTT_CONNECTED;
         APP_SIM800_MQTT_CONN_CB(1);
     }
     else
@@ -887,7 +885,10 @@ void SIM800_TIM_ISR(void)
     case SIM800_TCP_CONNECTED:
         break;
 
-    case SIM800_MQTT_RECEIVING:
+    case SIM800_MQTT_CONNECTING:
+        break;
+
+    case SIM800_MQTT_CONNECTED:
         if (SIM800_PUBACK_Data.Flag)
         {
             SIM800_PUBACK_Data.Flag = 0;
@@ -1093,7 +1094,7 @@ void SIM800_MQTT_TX_Complete_Callback(void)
 {
     if (SIM800_State == SIM800_MQTT_TRANSMITTING)
     {
-        SIM800_State = SIM800_MQTT_RECEIVING;
+        SIM800_State = SIM800_MQTT_CONNECTED;
     }
 }
 
