@@ -249,9 +249,10 @@ static SIM800_Status_t _SIM800_Reset(void)
             {
                 next_delay = 2000;
                 retry++;
-                if (retry == 10)
+                if (retry >= 10)
                 {
                     reset_step = 0;
+                    retry = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -271,9 +272,10 @@ static SIM800_Status_t _SIM800_Reset(void)
                 SIM800_UART_Send_String("AT+CGATT?\r\n");
                 next_delay = 3000;
                 retry++;
-                if (retry == 20)
+                if (retry >= 20)
                 {
                     reset_step = 0;
+                    retry = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -293,9 +295,10 @@ static SIM800_Status_t _SIM800_Reset(void)
                 SIM800_UART_Send_String("AT+CCLK?\r\n");
                 next_delay = 1000;
                 retry++;
-                if (retry == 2)
+                if (retry >= 2)
                 {
                     reset_step = 0;
+                    retry = 0;
                     sim800_result = SIM800_SUCCESS; /** return success even if time failed */
                 }
             }
@@ -781,7 +784,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
     else
     {
         SIM800_State = SIM800_RESET_OK;
-        APP_SIM800_MQTT_CONN_CB(0);
+        APP_SIM800_MQTT_CONN_CB(code);
     }
 }
 
