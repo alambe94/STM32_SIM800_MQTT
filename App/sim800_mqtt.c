@@ -66,12 +66,12 @@ static uint32_t CH_In_STR(char ch, char *str)
 /**
   * @brief  one of the unused gpio pin interrupt is used to handle SIM800 background task
   *         it will be software triggered by sim800 uart idle interrupt
-  * @note   set NVIC to 4 bit for preemption 0 bit for sub priority, this interrupt priority < systick 
+  * @note   set NVIC to 4 bit for preemption 0 bit for sub priority, tx task timer interrupt < this interrupt priority < systick
   * @warning interrupt on this GPIO can no longer be used and usage is not visible on cubeMX generator
   */
 void SIM800_RX_Task_Init(void)
 {
-    HAL_NVIC_SetPriority((IRQn_Type)EXTI1_IRQn, 5, 0);
+    HAL_NVIC_SetPriority((IRQn_Type)EXTI1_IRQn, 3, 0);
     HAL_NVIC_EnableIRQ((IRQn_Type)EXTI1_IRQn);
 }
 
@@ -371,7 +371,7 @@ static uint8_t _SIM800_TCP_Connect()
             {
                 SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
                 SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
-                next_delay = 10;
+                next_delay = 500;
                 tcp_step++;
             }
             else
@@ -422,7 +422,7 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** Get local IP address */
                 SIM800_UART_Send_String("AT+CIFSR\r\n");
-                next_delay = 100;
+                next_delay = 1000;
                 tcp_step++;
             }
             else
@@ -441,7 +441,7 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
                                    _TCP_Data._Broker,
                                    _TCP_Data._Port);
-                next_delay = 1000;
+                next_delay = 3000;
                 tcp_step++;
             }
             else
