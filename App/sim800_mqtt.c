@@ -37,6 +37,7 @@ typedef enum SIM800_Status_t
     SIM800_FAILED
 } SIM800_Status_t;
 
+/** store info about msg received from broker, if we need to send PUBACK */
 struct SIM800_PUBACK_Data_t
 {
     uint8_t Flag;
@@ -770,6 +771,17 @@ void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
 }
 
 /**
+ * @brief called when TCP connection is closed
+ */
+void SIM800_TCP_CONN_Closed_Callback(void)
+{
+    /** TCP connection closed due to inactivity or server closed the connection */
+    /** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
+    SIM800_State = SIM800_RESET_OK;
+    APP_SIM800_TCP_Closed_CB();
+}
+
+/**
  * @brief called when CONNACK is received
  *        callback response for @see SIM800_MQTT_Connect
  * @param code return code from broker
@@ -828,7 +840,7 @@ void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
 }
 
 /**
- * @brief called when message is received
+ * @brief called when mqtt message is received
  * @param topic topic on which message is received
  * @param message received message
  * @param msg_len message length
@@ -892,10 +904,11 @@ void SIM800_TIM_ISR(void)
         break;
 
     case SIM800_MQTT_CONNECTED:
+        /** check if we need to sen PUBACK */
         if (SIM800_PUBACK_Data.Flag)
         {
             SIM800_PUBACK_Data.Flag = 0;
-            SIM800_UART_Send_Char(0x40); /** PUBACK */
+            SIM800_UART_Send_Char(0x40); /** PUBACK header */
             SIM800_UART_Send_Char(0x02);
             SIM800_UART_Send_Char((SIM800_PUBACK_Data.Message_ID >> 8) & 0xFF);
             SIM800_UART_Send_Char(SIM800_PUBACK_Data.Message_ID & 0xFF);
@@ -923,7 +936,7 @@ void EXTI1_IRQHandler(void)
 
             if (rx_chars[0] != -1)
             {
-                /** published from broker received */
+                /** published msg from broker received */
                 if ((rx_chars[0] & 0x30) == 0x30)
                 {
                     SIM800_UART_Get_Char();
@@ -1026,9 +1039,7 @@ void EXTI1_IRQHandler(void)
                     SIM800_UART_Get_Chars(rx_chars, 10, 0);
                     if (strstr(rx_chars, "\r\nCLOSED\r\n") != NULL)
                     {
-                        /** TCP connection closed due to inactivity */
-                        /** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
-                        SIM800_State = SIM800_RESET_OK;
+                        SIM800_TCP_CONN_Closed_Callback();
                     }
                 }
                 else
@@ -1090,7 +1101,7 @@ void EXTI1_IRQHandler(void)
 }
 
 /**
- * @brief called when sim800 modem using uart dma mode, @see SIM800_UART_TX_CMPLT_ISR
+ * @brief called when sim800 modem is using uart dma mode, @see SIM800_UART_TX_CMPLT_ISR
  * @note only applicable if tx dma is used
  */
 void SIM800_MQTT_TX_Complete_Callback(void)
@@ -1101,7 +1112,7 @@ void SIM800_MQTT_TX_Complete_Callback(void)
     }
 }
 
-/** WAEK callbacks need to define by user app ****/
+/****************************** WEAK callbacks need to be defined by user app **********************/
 __weak void APP_SIM800_Reset_CB(uint8_t reset_ok)
 {
 }
@@ -1111,7 +1122,10 @@ __weak void APP_SIM800_Date_Time_CB(struct SIM800_Date_Time_t *dt)
 __weak void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
 {
 }
-__weak void APP_SIM800_MQTT_CONN_CB(uint8_t mqtt_ok)
+__weak void APP_SIM800_TCP_Closed_CB(void)
+{
+}
+__weak void APP_SIM800_MQTT_CONN_CB(uint8_t code)
 {
 }
 __weak void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id)
