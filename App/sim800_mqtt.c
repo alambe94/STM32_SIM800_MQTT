@@ -206,8 +206,23 @@ static SIM800_Status_t _SIM800_Reset(void)
         case 0:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
             sim800_result = SIM800_BUSY;
+
+            SIM800_Response_Flags.SIM800_RESP_OK = 0;
+            SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
+            SIM800_Response_Flags.SIM800_RESP_CALL_READY = 0;
+            SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
+            SIM800_Response_Flags.SIM800_RESP_TIME = 0;
+            SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
+            SIM800_Response_Flags.SIM800_RESP_IP = 0;
+            SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
+
+            SIM800_Response_Flags.SIM800_RESP_MQTT_CONNACK = 0;
+            SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 0;
+            SIM800_Response_Flags.SIM800_RESP_MQTT_SUBACK = 0;
+            SIM800_Response_Flags.SIM800_RESP_MQTT_PINGACK = 0;
+
             reset_step++;
-            next_delay = 1000;
+            next_delay = 3000;
             break;
 
         case 1:
@@ -1095,6 +1110,10 @@ void EXTI1_IRQHandler(void)
                 dt.Minutes = (line[20] - '0') * 10 + line[21] - '0';
                 dt.Seconds = (line[23] - '0') * 10 + line[24] - '0';
                 SIM800_MQTT_Date_Time_Callback(&dt);
+            }
+            else
+            {
+                SIM800_UART_Get_Char();
             }
         }
     }
