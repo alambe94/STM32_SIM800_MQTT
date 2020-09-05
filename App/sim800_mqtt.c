@@ -62,6 +62,8 @@ typedef struct SIM800_Handle_t
 
     uint8_t TCP_Step;
     uint8_t TCP_Retry;
+
+    uint32_t Next_Tick;
 } SIM800_Handle_t;
 
 /** hold sim800 handle */
@@ -227,18 +229,18 @@ uint8_t SIM800_Reset(void)
     hSIM800.Reset_Step = 0;
     hSIM800.Reset_Retry = 0;
 
+    /** start reset sequence after 100ms */
+    hSIM800.Next_Tick = HAL_GetTick() + 100;
+
     return 1;
 }
 static SIM800_Status_t _SIM800_Reset(void)
 {
     SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    static uint32_t next_delay = 0;
-    static uint32_t loop_ticks = 0;
-
-    if (HAL_GetTick() - loop_ticks > next_delay)
+    if (HAL_GetTick() > hSIM800.Next_Tick)
     {
-        loop_ticks = HAL_GetTick();
+        uint32_t tick_now = HAL_GetTick();
 
         switch (hSIM800.Reset_Step)
         {
@@ -247,34 +249,34 @@ static SIM800_Status_t _SIM800_Reset(void)
             sim800_result = SIM800_BUSY;
 
             hSIM800.Reset_Step++;
-            next_delay = 3000;
+            hSIM800.Next_Tick = tick_now + 1000;
             break;
 
         case 1:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
             hSIM800.Reset_Step++;
-            next_delay = 5000;
+            hSIM800.Next_Tick = tick_now + 5000;
             break;
 
         case 2:
             /** send dummy, so sim800 can auto adjust its baud */
             SIM800_UART_Send_String("AT\r\n");
             hSIM800.Reset_Step++;
-            next_delay = 100;
+            hSIM800.Next_Tick = tick_now + 100;
             break;
 
         case 3:
             /** disable echo */
             SIM800_UART_Send_String("ATE0\r\n");
             hSIM800.Reset_Step++;
-            next_delay = 1000;
+            hSIM800.Next_Tick = tick_now + 1000;
             break;
 
         case 4:
             SIM800_UART_Flush_RX();
             hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
             hSIM800.Reset_Step++;
-            next_delay = 100;
+            hSIM800.Next_Tick = tick_now + 100;
             break;
 
         case 5:
@@ -283,12 +285,12 @@ static SIM800_Status_t _SIM800_Reset(void)
             {
                 hSIM800.RESP_Flags.SIM800_RESP_SMS_READY = 0;
                 hSIM800.Reset_Step++;
-                next_delay = 100;
+                hSIM800.Next_Tick = tick_now + 100;
                 hSIM800.Reset_Retry = 0;
             }
             else
             {
-                next_delay = 2000;
+                hSIM800.Next_Tick = tick_now + 2000;
                 hSIM800.Reset_Retry++;
                 if (hSIM800.Reset_Retry >= 10)
                 {
@@ -306,12 +308,12 @@ static SIM800_Status_t _SIM800_Reset(void)
                 hSIM800.RESP_Flags.SIM800_RESP_GPRS_READY = 0;
                 hSIM800.Reset_Step++;
                 hSIM800.Reset_Retry = 0;
-                next_delay = 1000;
+                hSIM800.Next_Tick = tick_now + 1000;
             }
             else
             {
                 SIM800_UART_Send_String("AT+CGATT?\r\n");
-                next_delay = 3000;
+                hSIM800.Next_Tick = tick_now + 3000;
                 hSIM800.Reset_Retry++;
                 if (hSIM800.Reset_Retry >= 20)
                 {
@@ -329,12 +331,12 @@ static SIM800_Status_t _SIM800_Reset(void)
                 hSIM800.RESP_Flags.SIM800_RESP_TIME = 0;
                 hSIM800.Reset_Step++;
                 hSIM800.Reset_Retry = 0;
-                next_delay = 1000;
+                hSIM800.Next_Tick = tick_now + 1000;
             }
             else
             {
                 SIM800_UART_Send_String("AT+CCLK?\r\n");
-                next_delay = 1000;
+                hSIM800.Next_Tick = tick_now + 1000;
                 hSIM800.Reset_Retry++;
                 if (hSIM800.Reset_Retry >= 2)
                 {
@@ -349,6 +351,7 @@ static SIM800_Status_t _SIM800_Reset(void)
             SIM800_UART_Flush_RX();
             hSIM800.Reset_Step = 0;
             hSIM800.Reset_Retry = 0;
+            hSIM800.Next_Tick = tick_now + 100;
             sim800_result = SIM800_SUCCESS;
             hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
             break;
@@ -377,7 +380,7 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 
         hSIM800.TCP_Step = 0;
         hSIM800.TCP_Retry = 0;
-
+        hSIM800.Next_Tick = HAL_GetTick() + 100;
         hSIM800.State = SIM800_TCP_CONNECTING;
 
         return 1;
@@ -389,19 +392,16 @@ static uint8_t _SIM800_TCP_Connect()
 {
     SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    static uint32_t next_delay = 0;
-    static uint32_t loop_ticks = 0;
-
-    if (HAL_GetTick() - loop_ticks > next_delay)
+    if (HAL_GetTick() > hSIM800.Next_Tick)
     {
-        loop_ticks = HAL_GetTick();
+        uint32_t tick_now = HAL_GetTick();
 
         switch (hSIM800.TCP_Step)
         {
         case 0:
             SIM800_UART_Send_String("AT+CIPSHUT\r\n");
             sim800_result = SIM800_BUSY;
-            next_delay = 500;
+            hSIM800.Next_Tick = tick_now + 500;
             hSIM800.TCP_Step++;
             break;
 
@@ -411,12 +411,13 @@ static uint8_t _SIM800_TCP_Connect()
             {
                 hSIM800.RESP_Flags.SIM800_RESP_SHUT_OK = 0;
                 SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
-                next_delay = 500;
+                hSIM800.Next_Tick = tick_now + 500;
                 hSIM800.TCP_Step++;
             }
             else
             {
                 hSIM800.TCP_Step = 0;
+                hSIM800.Next_Tick = tick_now + 100;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -428,12 +429,13 @@ static uint8_t _SIM800_TCP_Connect()
                 hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 /** assemble sim apn */
                 SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", hSIM800.SIM_APN);
-                next_delay = 1000;
+                hSIM800.Next_Tick = tick_now + 1000;
                 hSIM800.TCP_Step++;
             }
             else
             {
                 hSIM800.TCP_Step = 0;
+                hSIM800.Next_Tick = tick_now + 100;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -445,12 +447,13 @@ static uint8_t _SIM800_TCP_Connect()
                 hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 /** Bring up wireless connection (GPRS or CSD) */
                 SIM800_UART_Send_String("AT+CIICR\r\n");
-                next_delay = 3000;
+                hSIM800.Next_Tick = tick_now + 3000;
                 hSIM800.TCP_Step++;
             }
             else
             {
                 hSIM800.TCP_Step = 0;
+                hSIM800.Next_Tick = tick_now + 100;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -462,12 +465,13 @@ static uint8_t _SIM800_TCP_Connect()
                 hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 /** Get local IP address */
                 SIM800_UART_Send_String("AT+CIFSR\r\n");
-                next_delay = 3000;
+                hSIM800.Next_Tick = tick_now + 3000;
                 hSIM800.TCP_Step++;
             }
             else
             {
                 hSIM800.TCP_Step = 0;
+                hSIM800.Next_Tick = tick_now + 100;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -481,12 +485,13 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
                                    hSIM800.TCP_IP,
                                    hSIM800.TCP_Port);
-                next_delay = 3000;
+                hSIM800.Next_Tick = tick_now + 3000;
                 hSIM800.TCP_Step++;
             }
             else
             {
                 hSIM800.TCP_Step = 0;
+                hSIM800.Next_Tick = tick_now + 100;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -498,12 +503,13 @@ static uint8_t _SIM800_TCP_Connect()
                 hSIM800.RESP_Flags.SIM800_RESP_CONNECT = 0;
                 hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 sim800_result = SIM800_SUCCESS;
-                next_delay = 100;
+                hSIM800.Next_Tick = tick_now + 100;
                 hSIM800.TCP_Step = 0;
             }
             else
             {
                 hSIM800.TCP_Step = 0;
+                hSIM800.Next_Tick = tick_now + 1000;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -600,7 +606,29 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
         }
     }
 
+    /** response must be received within this period */
+    hSIM800.Next_Tick = HAL_GetTick() + 1000;
+
     return 1;
+}
+SIM800_Status_t _SIM800_MQTT_Connect(void)
+{
+    SIM800_Status_t sim800_result = SIM800_BUSY;
+
+    if (HAL_GetTick() > hSIM800.Next_Tick)
+    {
+        if (hSIM800.RESP_Flags.SIM800_RESP_MQTT_CONNACK)
+        {
+            hSIM800.RESP_Flags.SIM800_RESP_MQTT_CONNACK = 0;
+            sim800_result = SIM800_SUCCESS;
+        }
+        else
+        {
+            sim800_result = SIM800_FAILED;
+        }
+    }
+
+    return sim800_result;
 }
 
 /**
@@ -818,6 +846,15 @@ void SIM800_TCP_CONN_Closed_Callback(void)
 }
 
 /**
+ * @brief called when MQTT CONN failed
+ *        callback response for @see SIM800_MQTT_Connect if nothing is received from broker
+ */
+void SIM800_MQTT_CONN_Failed_Callback(void)
+{
+    hSIM800.State = SIM800_RESET_OK;
+}
+
+/**
  * @brief called when CONNACK is received
  *        callback response for @see SIM800_MQTT_Connect
  * @param code return code from broker
@@ -827,7 +864,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
     if (code == 0)
     {
         hSIM800.State = SIM800_MQTT_CONNECTED;
-        APP_SIM800_MQTT_CONN_CB(1);
+        APP_SIM800_MQTT_CONN_CB(code);
     }
     else
     {
@@ -910,12 +947,9 @@ void SIM800_TIM_ISR(void)
 
     case SIM800_RESETING:
         sim800_result = _SIM800_Reset();
-        if (sim800_result == SIM800_SUCCESS || sim800_result == SIM800_FAILED)
+        if (sim800_result != SIM800_BUSY)
         {
             SIM800_Reset_Complete_Callback(sim800_result);
-        }
-        else if (sim800_result == SIM800_BUSY)
-        {
         }
         break;
 
@@ -924,12 +958,9 @@ void SIM800_TIM_ISR(void)
 
     case SIM800_TCP_CONNECTING:
         sim800_result = _SIM800_TCP_Connect();
-        if (sim800_result == SIM800_SUCCESS || sim800_result == SIM800_FAILED)
+        if (sim800_result != SIM800_BUSY)
         {
             SIM800_TCP_CONN_Complete_Callback(sim800_result);
-        }
-        else if (sim800_result == SIM800_BUSY)
-        {
         }
         break;
 
@@ -937,6 +968,11 @@ void SIM800_TIM_ISR(void)
         break;
 
     case SIM800_MQTT_CONNECTING:
+        sim800_result = _SIM800_MQTT_Connect();
+        if (sim800_result == SIM800_FAILED)
+        {
+            SIM800_MQTT_CONN_Failed_Callback();
+        }
         break;
 
     case SIM800_MQTT_CONNECTED:

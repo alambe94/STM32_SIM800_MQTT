@@ -11,6 +11,8 @@
 #include "sim800_uart.h"
 #include "sim800_mqtt.h"
 
+#define USE_UART_RX_DMA 0
+
 /** uart used from comm with sim800 */
 UART_HandleTypeDef *SIM800_UART = &huart3;
 
@@ -28,8 +30,12 @@ void SIM800_UART_Init(void)
 {
     /** configured in cube @see usart.c*/
 
+#if (USE_UART_RX_DMA == 1)
     /** start uart data reception */
     HAL_UART_Receive_DMA(SIM800_UART, RB_Storage, RB_STORAGE_SIZE);
+#else
+    HAL_UART_Receive_IT(SIM800_UART, &RB_Storage[0], 1);
+#endif
 
     /** enable idle interrupt */
     __HAL_UART_ENABLE_IT(SIM800_UART, UART_IT_IDLE);
@@ -40,6 +46,7 @@ void SIM800_UART_Init(void)
  */
 void SIM800_UART_Restart(void)
 {
+#if (USE_UART_RX_DMA == 1)
     __HAL_UART_DISABLE_IT(SIM800_UART, UART_IT_IDLE);
     HAL_UART_DMAStop(SIM800_UART);
     HAL_UART_DeInit(SIM800_UART);
@@ -47,6 +54,7 @@ void SIM800_UART_Restart(void)
     HAL_UART_Init(SIM800_UART);
     HAL_UART_Receive_DMA(SIM800_UART, RB_Storage, RB_STORAGE_SIZE);
     __HAL_UART_ENABLE_IT(SIM800_UART, UART_IT_IDLE);
+#endif
 }
 
 /**
@@ -313,12 +321,13 @@ void SIM800_UART_RX_ISR(void)
     {
         __HAL_UART_CLEAR_IDLEFLAG(SIM800_UART);
 
+#if (USE_UART_RX_DMA == 1)
         /** data is written to buffer via uart DMA in background*/
         /** need to update Write_Index manually */
         RB_Write_Index = RB_STORAGE_SIZE - SIM800_UART->hdmarx->Instance->NDTR;
 
         //RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
-
+#endif
         /** start sim800 rx task */
         SIM800_RX_Task_Trigger();
     }
@@ -332,4 +341,21 @@ void SIM800_UART_TX_CMPLT_ISR(void)
 {
     extern void SIM800_MQTT_TX_Complete_Callback(void);
     SIM800_MQTT_TX_Complete_Callback();
+}
+
+/**
+ * @brief called when uart rx is complete
+ *        called from @see HAL_UART_RxCpltCallback in stm32f4xx_it.c
+ **/
+void SIM800_UART_RX_CMPLT_ISR(void)
+{
+#if (USE_UART_RX_DMA == 0)
+    RB_Write_Index++;
+    if (RB_Write_Index == RB_STORAGE_SIZE)
+    {
+        RB_Write_Index = 0;
+    }
+    /** start another reception */
+    HAL_UART_Receive_IT(SIM800_UART, (RB_Storage + RB_Write_Index), 1);
+#endif
 }

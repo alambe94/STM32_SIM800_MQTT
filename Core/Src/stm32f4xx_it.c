@@ -267,6 +267,15 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if(huart == &huart3)
+	{
+	  extern void SIM800_UART_RX_CMPLT_ISR(void);
+	  SIM800_UART_RX_CMPLT_ISR();
+	}
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if(htim == &htim14)
