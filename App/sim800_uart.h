@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 void SIM800_UART_Init(void);
+void SIM800_UART_Restart(void);
 void SIM800_UART_Send_Char(char data);
 void SIM800_UART_Send_Bytes(char *data, uint32_t count);
 void SIM800_UART_Send_Bytes_DMA(char *data, uint32_t count);

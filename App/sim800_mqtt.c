@@ -182,9 +182,33 @@ uint8_t SIM800_Get_Time(void)
  * @param none
  * @retval return 1 if command can be executed     
  */
+static uint8_t _Reset_Step = 0;
+static uint8_t _Reset_Retry = 0;
 uint8_t SIM800_Reset(void)
 {
     SIM800_State = SIM800_RESETING;
+
+    SIM800_Response_Flags.SIM800_RESP_OK = 0;
+    SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
+    SIM800_Response_Flags.SIM800_RESP_CALL_READY = 0;
+    SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
+    SIM800_Response_Flags.SIM800_RESP_TIME = 0;
+    SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
+    SIM800_Response_Flags.SIM800_RESP_IP = 0;
+    SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
+
+    SIM800_Response_Flags.SIM800_RESP_MQTT_CONNACK = 0;
+    SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 0;
+    SIM800_Response_Flags.SIM800_RESP_MQTT_SUBACK = 0;
+    SIM800_Response_Flags.SIM800_RESP_MQTT_PINGACK = 0;
+
+    SIM800_UART_Restart();
+
+    SIM800_UART_Flush_RX();
+
+    _Reset_Step = 0;
+    _Reset_Retry = 0;
+
     return 1;
 }
 static SIM800_Status_t _SIM800_Reset(void)
@@ -196,59 +220,42 @@ static SIM800_Status_t _SIM800_Reset(void)
 
     if (HAL_GetTick() - loop_ticks > next_delay)
     {
-        static uint8_t reset_step = 0;
-        static uint8_t retry = 0;
-
         loop_ticks = HAL_GetTick();
 
-        switch (reset_step)
+        switch (_Reset_Step)
         {
         case 0:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
             sim800_result = SIM800_BUSY;
 
-            SIM800_Response_Flags.SIM800_RESP_OK = 0;
-            SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
-            SIM800_Response_Flags.SIM800_RESP_CALL_READY = 0;
-            SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
-            SIM800_Response_Flags.SIM800_RESP_TIME = 0;
-            SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
-            SIM800_Response_Flags.SIM800_RESP_IP = 0;
-            SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
-
-            SIM800_Response_Flags.SIM800_RESP_MQTT_CONNACK = 0;
-            SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 0;
-            SIM800_Response_Flags.SIM800_RESP_MQTT_SUBACK = 0;
-            SIM800_Response_Flags.SIM800_RESP_MQTT_PINGACK = 0;
-
-            reset_step++;
+            _Reset_Step++;
             next_delay = 3000;
             break;
 
         case 1:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
-            reset_step++;
+            _Reset_Step++;
             next_delay = 5000;
             break;
 
         case 2:
             /** send dummy, so sim800 can auto adjust its baud */
             SIM800_UART_Send_String("AT\r\n");
-            reset_step++;
+            _Reset_Step++;
             next_delay = 100;
             break;
 
         case 3:
             /** disable echo */
             SIM800_UART_Send_String("ATE0\r\n");
-            reset_step++;
+            _Reset_Step++;
             next_delay = 1000;
             break;
 
         case 4:
             SIM800_UART_Flush_RX();
             SIM800_Response_Flags.SIM800_RESP_OK = 0;
-            reset_step++;
+            _Reset_Step++;
             next_delay = 100;
             break;
 
@@ -257,18 +264,18 @@ static SIM800_Status_t _SIM800_Reset(void)
             if (SIM800_Response_Flags.SIM800_RESP_SMS_READY)
             {
                 SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
-                reset_step++;
+                _Reset_Step++;
                 next_delay = 100;
-                retry = 0;
+                _Reset_Retry = 0;
             }
             else
             {
                 next_delay = 2000;
-                retry++;
-                if (retry >= 10)
+                _Reset_Retry++;
+                if (_Reset_Retry >= 10)
                 {
-                    reset_step = 0;
-                    retry = 0;
+                    _Reset_Step = 0;
+                    _Reset_Retry = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -279,19 +286,19 @@ static SIM800_Status_t _SIM800_Reset(void)
             if (SIM800_Response_Flags.SIM800_RESP_GPRS_READY)
             {
                 SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
-                reset_step++;
-                retry = 0;
+                _Reset_Step++;
+                _Reset_Retry = 0;
                 next_delay = 1000;
             }
             else
             {
                 SIM800_UART_Send_String("AT+CGATT?\r\n");
                 next_delay = 3000;
-                retry++;
-                if (retry >= 20)
+                _Reset_Retry++;
+                if (_Reset_Retry >= 20)
                 {
-                    reset_step = 0;
-                    retry = 0;
+                    _Reset_Step = 0;
+                    _Reset_Retry = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -302,19 +309,19 @@ static SIM800_Status_t _SIM800_Reset(void)
             if (SIM800_Response_Flags.SIM800_RESP_TIME)
             {
                 SIM800_Response_Flags.SIM800_RESP_TIME = 0;
-                reset_step++;
-                retry = 0;
+                _Reset_Step++;
+                _Reset_Retry = 0;
                 next_delay = 1000;
             }
             else
             {
                 SIM800_UART_Send_String("AT+CCLK?\r\n");
                 next_delay = 1000;
-                retry++;
-                if (retry >= 2)
+                _Reset_Retry++;
+                if (_Reset_Retry >= 2)
                 {
-                    reset_step = 0;
-                    retry = 0;
+                    _Reset_Step = 0;
+                    _Reset_Retry = 0;
                     sim800_result = SIM800_SUCCESS; /** return success even if time failed */
                 }
             }
@@ -322,8 +329,8 @@ static SIM800_Status_t _SIM800_Reset(void)
 
         case 8:
             SIM800_UART_Flush_RX();
-            reset_step = 0;
-            retry = 0;
+            _Reset_Step = 0;
+            _Reset_Retry = 0;
             sim800_result = SIM800_SUCCESS;
             SIM800_Response_Flags.SIM800_RESP_OK = 0;
             break;
@@ -346,6 +353,9 @@ struct TCP_Data_t
     char _SIM_APN[32];
     char _Broker[32];
     uint16_t _Port;
+
+    uint8_t _TCP_Step;
+    uint8_t _TCP_Retry;
 } _TCP_Data;
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
@@ -354,6 +364,9 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
         snprintf(_TCP_Data._SIM_APN, sizeof(_TCP_Data._SIM_APN), "%s", sim_apn);
         snprintf(_TCP_Data._Broker, sizeof(_TCP_Data._Broker), "%s", broker);
         _TCP_Data._Port = port;
+
+        _TCP_Data._TCP_Step = 0;
+        _TCP_Data._TCP_Retry = 0;
 
         SIM800_State = SIM800_TCP_CONNECTING;
 
@@ -371,17 +384,15 @@ static uint8_t _SIM800_TCP_Connect()
 
     if (HAL_GetTick() - loop_ticks > next_delay)
     {
-        static uint8_t tcp_step = 0;
-
         loop_ticks = HAL_GetTick();
 
-        switch (tcp_step)
+        switch (_TCP_Data._TCP_Step)
         {
         case 0:
             SIM800_UART_Send_String("AT+CIPSHUT\r\n");
             sim800_result = SIM800_BUSY;
-            next_delay = 10;
-            tcp_step++;
+            next_delay = 500;
+            _TCP_Data._TCP_Step++;
             break;
 
         case 1:
@@ -391,11 +402,11 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
                 SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
                 next_delay = 500;
-                tcp_step++;
+                _TCP_Data._TCP_Step++;
             }
             else
             {
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -407,12 +418,12 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** assemble sim apn */
                 SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", _TCP_Data._SIM_APN);
-                next_delay = 3000;
-                tcp_step++;
+                next_delay = 1000;
+                _TCP_Data._TCP_Step++;
             }
             else
             {
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -424,12 +435,12 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** Bring up wireless connection (GPRS or CSD) */
                 SIM800_UART_Send_String("AT+CIICR\r\n");
-                next_delay = 1000;
-                tcp_step++;
+                next_delay = 3000;
+                _TCP_Data._TCP_Step++;
             }
             else
             {
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -441,12 +452,12 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 /** Get local IP address */
                 SIM800_UART_Send_String("AT+CIFSR\r\n");
-                next_delay = 1000;
-                tcp_step++;
+                next_delay = 3000;
+                _TCP_Data._TCP_Step++;
             }
             else
             {
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -461,11 +472,11 @@ static uint8_t _SIM800_TCP_Connect()
                                    _TCP_Data._Broker,
                                    _TCP_Data._Port);
                 next_delay = 3000;
-                tcp_step++;
+                _TCP_Data._TCP_Step++;
             }
             else
             {
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -478,11 +489,11 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_Response_Flags.SIM800_RESP_OK = 0;
                 sim800_result = SIM800_SUCCESS;
                 next_delay = 100;
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
             }
             else
             {
-                tcp_step = 0;
+                _TCP_Data._TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -1110,10 +1121,6 @@ void EXTI1_IRQHandler(void)
                 dt.Minutes = (line[20] - '0') * 10 + line[21] - '0';
                 dt.Seconds = (line[23] - '0') * 10 + line[24] - '0';
                 SIM800_MQTT_Date_Time_Callback(&dt);
-            }
-            else
-            {
-                SIM800_UART_Get_Char();
             }
         }
     }

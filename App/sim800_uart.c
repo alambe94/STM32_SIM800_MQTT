@@ -22,7 +22,7 @@ static volatile uint32_t RB_Write_Index;
 static volatile uint8_t RB_Full_Flag;
 
 /**
- * @brief Init uart used for log
+ * @brief Init uart used for sim800
  */
 void SIM800_UART_Init(void)
 {
@@ -32,6 +32,20 @@ void SIM800_UART_Init(void)
     HAL_UART_Receive_DMA(SIM800_UART, RB_Storage, RB_STORAGE_SIZE);
 
     /** enable idle interrupt */
+    __HAL_UART_ENABLE_IT(SIM800_UART, UART_IT_IDLE);
+}
+
+/**
+ * @brief restart uart
+ */
+void SIM800_UART_Restart(void)
+{
+    __HAL_UART_DISABLE_IT(SIM800_UART, UART_IT_IDLE);
+    HAL_UART_DMAStop(SIM800_UART);
+    HAL_UART_DeInit(SIM800_UART);
+
+    HAL_UART_Init(SIM800_UART);
+    HAL_UART_Receive_DMA(SIM800_UART, RB_Storage, RB_STORAGE_SIZE);
     __HAL_UART_ENABLE_IT(SIM800_UART, UART_IT_IDLE);
 }
 
