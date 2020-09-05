@@ -78,8 +78,8 @@ void APP_SIM800_Reset_CB(uint8_t reset_ok)
 
 void APP_SIM800_Date_Time_CB(struct SIM800_Date_Time_t *dt)
 {
-	dt->Year;
-	dt->Minutes;
+	(void)dt->Year;
+	(void)dt->Minutes;
 }
 
 void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
