@@ -13,7 +13,7 @@
 #include "sim800_mqtt.h"
 #include "sim800_uart.h"
 
-struct SIM800_Response_Flags_t
+typedef struct SIM800_Response_Flags_t
 {
     uint8_t SIM800_RESP_OK;
     uint8_t SIM800_RESP_SMS_READY;
@@ -28,7 +28,7 @@ struct SIM800_Response_Flags_t
     uint8_t SIM800_RESP_MQTT_PUBACK;
     uint8_t SIM800_RESP_MQTT_SUBACK;
     uint8_t SIM800_RESP_MQTT_PINGACK;
-} SIM800_Response_Flags;
+} SIM800_Response_Flags_t;
 
 typedef enum SIM800_Status_t
 {
@@ -38,14 +38,34 @@ typedef enum SIM800_Status_t
 } SIM800_Status_t;
 
 /** store info about msg received from broker, if we need to send PUBACK */
-struct SIM800_PUBACK_Data_t
+typedef struct SIM800_PUBREC_Data_t
 {
     uint8_t Flag;
     uint16_t Message_ID;
-} SIM800_PUBACK_Data;
+} SIM800_PUBREC_Data_t;
 
-/** hold sim800 state */
-static enum SIM800_State_t SIM800_State;
+typedef struct SIM800_Handle_t
+{
+    SIM800_Response_Flags_t RESP_Flags;
+    SIM800_Status_t Status;
+    SIM800_State_t State;
+
+    SIM800_PUBREC_Data_t PUBREC;
+
+    uint8_t Reset_Step;
+    uint8_t Reset_Retry;
+
+    char SIM_APN[32];
+
+    char TCP_IP[32];
+    uint16_t TCP_Port;
+
+    uint8_t TCP_Step;
+    uint8_t TCP_Retry;
+} SIM800_Handle_t;
+
+/** hold sim800 handle */
+SIM800_Handle_t hSIM800;
 
 /**
   * @brief  return ch occurrence in string
@@ -105,7 +125,7 @@ void SIM800_Init(void)
 
     SIM800_TX_Task_Init();
 
-    SIM800_State = SIM800_IDLE;
+    hSIM800.State = SIM800_IDLE;
 
     /** timer used for tx task is configured in cube @see tim.c */
     HAL_TIM_Base_Start_IT(&htim14);
@@ -150,15 +170,15 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_Is_MQTT_Connected(void)
 {
-    return (SIM800_State >= SIM800_MQTT_CONNECTED);
+    return (hSIM800.State >= SIM800_MQTT_CONNECTED);
 }
 
 /**
  * @brief return the state of sim800
  */
-enum SIM800_State_t SIM800_Get_State(void)
+SIM800_State_t SIM800_Get_State(void)
 {
-    return SIM800_State;
+    return hSIM800.State;
 }
 
 /**
@@ -167,7 +187,7 @@ enum SIM800_State_t SIM800_Get_State(void)
  */
 uint8_t SIM800_Get_Time(void)
 {
-    if (SIM800_State < SIM800_TCP_CONNECTED)
+    if (hSIM800.State < SIM800_TCP_CONNECTED)
     {
         SIM800_UART_Send_String("AT+CCLK?\r\n");
         return 1;
@@ -182,38 +202,36 @@ uint8_t SIM800_Get_Time(void)
  * @param none
  * @retval return 1 if command can be executed     
  */
-static uint8_t _Reset_Step = 0;
-static uint8_t _Reset_Retry = 0;
 uint8_t SIM800_Reset(void)
 {
-    SIM800_State = SIM800_RESETING;
+    hSIM800.State = SIM800_RESETING;
 
-    SIM800_Response_Flags.SIM800_RESP_OK = 0;
-    SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
-    SIM800_Response_Flags.SIM800_RESP_CALL_READY = 0;
-    SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
-    SIM800_Response_Flags.SIM800_RESP_TIME = 0;
-    SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
-    SIM800_Response_Flags.SIM800_RESP_IP = 0;
-    SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_SMS_READY = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_CALL_READY = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_GPRS_READY = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_TIME = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_SHUT_OK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_IP = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_CONNECT = 0;
 
-    SIM800_Response_Flags.SIM800_RESP_MQTT_CONNACK = 0;
-    SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 0;
-    SIM800_Response_Flags.SIM800_RESP_MQTT_SUBACK = 0;
-    SIM800_Response_Flags.SIM800_RESP_MQTT_PINGACK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_MQTT_CONNACK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBACK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_MQTT_SUBACK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_MQTT_PINGACK = 0;
 
     SIM800_UART_Restart();
 
     SIM800_UART_Flush_RX();
 
-    _Reset_Step = 0;
-    _Reset_Retry = 0;
+    hSIM800.Reset_Step = 0;
+    hSIM800.Reset_Retry = 0;
 
     return 1;
 }
 static SIM800_Status_t _SIM800_Reset(void)
 {
-    static SIM800_Status_t sim800_result = SIM800_BUSY;
+    SIM800_Status_t sim800_result = SIM800_BUSY;
 
     static uint32_t next_delay = 0;
     static uint32_t loop_ticks = 0;
@@ -222,60 +240,60 @@ static SIM800_Status_t _SIM800_Reset(void)
     {
         loop_ticks = HAL_GetTick();
 
-        switch (_Reset_Step)
+        switch (hSIM800.Reset_Step)
         {
         case 0:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
             sim800_result = SIM800_BUSY;
 
-            _Reset_Step++;
+            hSIM800.Reset_Step++;
             next_delay = 3000;
             break;
 
         case 1:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_SET);
-            _Reset_Step++;
+            hSIM800.Reset_Step++;
             next_delay = 5000;
             break;
 
         case 2:
             /** send dummy, so sim800 can auto adjust its baud */
             SIM800_UART_Send_String("AT\r\n");
-            _Reset_Step++;
+            hSIM800.Reset_Step++;
             next_delay = 100;
             break;
 
         case 3:
             /** disable echo */
             SIM800_UART_Send_String("ATE0\r\n");
-            _Reset_Step++;
+            hSIM800.Reset_Step++;
             next_delay = 1000;
             break;
 
         case 4:
             SIM800_UART_Flush_RX();
-            SIM800_Response_Flags.SIM800_RESP_OK = 0;
-            _Reset_Step++;
+            hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
+            hSIM800.Reset_Step++;
             next_delay = 100;
             break;
 
         case 5:
             /** wait SMS Ready flag */
-            if (SIM800_Response_Flags.SIM800_RESP_SMS_READY)
+            if (hSIM800.RESP_Flags.SIM800_RESP_SMS_READY)
             {
-                SIM800_Response_Flags.SIM800_RESP_SMS_READY = 0;
-                _Reset_Step++;
+                hSIM800.RESP_Flags.SIM800_RESP_SMS_READY = 0;
+                hSIM800.Reset_Step++;
                 next_delay = 100;
-                _Reset_Retry = 0;
+                hSIM800.Reset_Retry = 0;
             }
             else
             {
                 next_delay = 2000;
-                _Reset_Retry++;
-                if (_Reset_Retry >= 10)
+                hSIM800.Reset_Retry++;
+                if (hSIM800.Reset_Retry >= 10)
                 {
-                    _Reset_Step = 0;
-                    _Reset_Retry = 0;
+                    hSIM800.Reset_Step = 0;
+                    hSIM800.Reset_Retry = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -283,22 +301,22 @@ static SIM800_Status_t _SIM800_Reset(void)
 
         case 6:
             /** wait GPRS Service’s status */
-            if (SIM800_Response_Flags.SIM800_RESP_GPRS_READY)
+            if (hSIM800.RESP_Flags.SIM800_RESP_GPRS_READY)
             {
-                SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 0;
-                _Reset_Step++;
-                _Reset_Retry = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_GPRS_READY = 0;
+                hSIM800.Reset_Step++;
+                hSIM800.Reset_Retry = 0;
                 next_delay = 1000;
             }
             else
             {
                 SIM800_UART_Send_String("AT+CGATT?\r\n");
                 next_delay = 3000;
-                _Reset_Retry++;
-                if (_Reset_Retry >= 20)
+                hSIM800.Reset_Retry++;
+                if (hSIM800.Reset_Retry >= 20)
                 {
-                    _Reset_Step = 0;
-                    _Reset_Retry = 0;
+                    hSIM800.Reset_Step = 0;
+                    hSIM800.Reset_Retry = 0;
                     sim800_result = SIM800_FAILED; /** failed */
                 }
             }
@@ -306,22 +324,22 @@ static SIM800_Status_t _SIM800_Reset(void)
 
         case 7:
             /** wait for network time */
-            if (SIM800_Response_Flags.SIM800_RESP_TIME)
+            if (hSIM800.RESP_Flags.SIM800_RESP_TIME)
             {
-                SIM800_Response_Flags.SIM800_RESP_TIME = 0;
-                _Reset_Step++;
-                _Reset_Retry = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_TIME = 0;
+                hSIM800.Reset_Step++;
+                hSIM800.Reset_Retry = 0;
                 next_delay = 1000;
             }
             else
             {
                 SIM800_UART_Send_String("AT+CCLK?\r\n");
                 next_delay = 1000;
-                _Reset_Retry++;
-                if (_Reset_Retry >= 2)
+                hSIM800.Reset_Retry++;
+                if (hSIM800.Reset_Retry >= 2)
                 {
-                    _Reset_Step = 0;
-                    _Reset_Retry = 0;
+                    hSIM800.Reset_Step = 0;
+                    hSIM800.Reset_Retry = 0;
                     sim800_result = SIM800_SUCCESS; /** return success even if time failed */
                 }
             }
@@ -329,10 +347,10 @@ static SIM800_Status_t _SIM800_Reset(void)
 
         case 8:
             SIM800_UART_Flush_RX();
-            _Reset_Step = 0;
-            _Reset_Retry = 0;
+            hSIM800.Reset_Step = 0;
+            hSIM800.Reset_Retry = 0;
             sim800_result = SIM800_SUCCESS;
-            SIM800_Response_Flags.SIM800_RESP_OK = 0;
+            hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
             break;
         }
     }
@@ -348,27 +366,19 @@ static SIM800_Status_t _SIM800_Reset(void)
  * @param port   broker mqtt port
  * @retval return 1 if command can be executed
  */
-struct TCP_Data_t
-{
-    char _SIM_APN[32];
-    char _Broker[32];
-    uint16_t _Port;
-
-    uint8_t _TCP_Step;
-    uint8_t _TCP_Retry;
-} _TCP_Data;
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
-    if (SIM800_State == SIM800_RESET_OK)
+    if (hSIM800.State == SIM800_RESET_OK)
     {
-        snprintf(_TCP_Data._SIM_APN, sizeof(_TCP_Data._SIM_APN), "%s", sim_apn);
-        snprintf(_TCP_Data._Broker, sizeof(_TCP_Data._Broker), "%s", broker);
-        _TCP_Data._Port = port;
+        snprintf(hSIM800.SIM_APN, sizeof(hSIM800.SIM_APN), "%s", sim_apn);
+        snprintf(hSIM800.TCP_IP, sizeof(hSIM800.TCP_IP), "%s", broker);
 
-        _TCP_Data._TCP_Step = 0;
-        _TCP_Data._TCP_Retry = 0;
+        hSIM800.TCP_Port = port;
 
-        SIM800_State = SIM800_TCP_CONNECTING;
+        hSIM800.TCP_Step = 0;
+        hSIM800.TCP_Retry = 0;
+
+        hSIM800.State = SIM800_TCP_CONNECTING;
 
         return 1;
     }
@@ -377,7 +387,7 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 }
 static uint8_t _SIM800_TCP_Connect()
 {
-    static SIM800_Status_t sim800_result = SIM800_BUSY;
+    SIM800_Status_t sim800_result = SIM800_BUSY;
 
     static uint32_t next_delay = 0;
     static uint32_t loop_ticks = 0;
@@ -386,114 +396,114 @@ static uint8_t _SIM800_TCP_Connect()
     {
         loop_ticks = HAL_GetTick();
 
-        switch (_TCP_Data._TCP_Step)
+        switch (hSIM800.TCP_Step)
         {
         case 0:
             SIM800_UART_Send_String("AT+CIPSHUT\r\n");
             sim800_result = SIM800_BUSY;
             next_delay = 500;
-            _TCP_Data._TCP_Step++;
+            hSIM800.TCP_Step++;
             break;
 
         case 1:
             /** check response of previous cmd (AT+CIPSHUT) */
-            if (SIM800_Response_Flags.SIM800_RESP_SHUT_OK)
+            if (hSIM800.RESP_Flags.SIM800_RESP_SHUT_OK)
             {
-                SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_SHUT_OK = 0;
                 SIM800_UART_Send_String("AT+CIPMODE=1\r\n");
                 next_delay = 500;
-                _TCP_Data._TCP_Step++;
+                hSIM800.TCP_Step++;
             }
             else
             {
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
 
         case 2:
             /** check response of previous cmd (AT+CIPMODE=1) */
-            if (SIM800_Response_Flags.SIM800_RESP_OK)
+            if (hSIM800.RESP_Flags.SIM800_RESP_OK)
             {
-                SIM800_Response_Flags.SIM800_RESP_OK = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 /** assemble sim apn */
-                SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", _TCP_Data._SIM_APN);
+                SIM800_UART_Printf("AT+CSTT=\"%s\",\"\",\"\"\r\n", hSIM800.SIM_APN);
                 next_delay = 1000;
-                _TCP_Data._TCP_Step++;
+                hSIM800.TCP_Step++;
             }
             else
             {
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
 
         case 3:
             /** check response of previous cmd (AT+CSTT=) */
-            if (SIM800_Response_Flags.SIM800_RESP_OK)
+            if (hSIM800.RESP_Flags.SIM800_RESP_OK)
             {
-                SIM800_Response_Flags.SIM800_RESP_OK = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 /** Bring up wireless connection (GPRS or CSD) */
                 SIM800_UART_Send_String("AT+CIICR\r\n");
                 next_delay = 3000;
-                _TCP_Data._TCP_Step++;
+                hSIM800.TCP_Step++;
             }
             else
             {
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
 
         case 4:
             /** check response of previous cmd (AT+CIICR) */
-            if (SIM800_Response_Flags.SIM800_RESP_OK)
+            if (hSIM800.RESP_Flags.SIM800_RESP_OK)
             {
-                SIM800_Response_Flags.SIM800_RESP_OK = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 /** Get local IP address */
                 SIM800_UART_Send_String("AT+CIFSR\r\n");
                 next_delay = 3000;
-                _TCP_Data._TCP_Step++;
+                hSIM800.TCP_Step++;
             }
             else
             {
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
 
         case 5:
             /** check response of previous cmd (AT+CIFSR) */
-            if (SIM800_Response_Flags.SIM800_RESP_IP)
+            if (hSIM800.RESP_Flags.SIM800_RESP_IP)
             {
-                SIM800_Response_Flags.SIM800_RESP_IP = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_IP = 0;
                 /** assemble server ip and port */
                 SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
-                                   _TCP_Data._Broker,
-                                   _TCP_Data._Port);
+                                   hSIM800.TCP_IP,
+                                   hSIM800.TCP_Port);
                 next_delay = 3000;
-                _TCP_Data._TCP_Step++;
+                hSIM800.TCP_Step++;
             }
             else
             {
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
 
         case 6:
             /** check response of previous cmd (AT+CIPSTART) */
-            if (SIM800_Response_Flags.SIM800_RESP_CONNECT && SIM800_Response_Flags.SIM800_RESP_OK)
+            if (hSIM800.RESP_Flags.SIM800_RESP_CONNECT && hSIM800.RESP_Flags.SIM800_RESP_OK)
             {
-                SIM800_Response_Flags.SIM800_RESP_CONNECT = 0;
-                SIM800_Response_Flags.SIM800_RESP_OK = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_CONNECT = 0;
+                hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
                 sim800_result = SIM800_SUCCESS;
                 next_delay = 100;
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
             }
             else
             {
-                _TCP_Data._TCP_Step = 0;
+                hSIM800.TCP_Step = 0;
                 sim800_result = SIM800_FAILED;
             }
             break;
@@ -522,7 +532,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             char *user_name,
                             char *password)
 {
-    if (SIM800_State < SIM800_TCP_CONNECTED)
+    if (hSIM800.State < SIM800_TCP_CONNECTED)
     {
         return 0;
     }
@@ -535,7 +545,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     uint32_t packet_len = 2 + protocol_name_len + 1 + 1 + 2 + 2 + my_id_len;
 
-    SIM800_State = SIM800_MQTT_CONNECTING;
+    hSIM800.State = SIM800_MQTT_CONNECTING;
 
     if (flags.Bits.User_Name && user_name != NULL)
     {
@@ -599,17 +609,17 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
  */
 uint8_t SIM800_MQTT_Disconnect(void)
 {
-    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
 
-    SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
     SIM800_UART_Send_Char(0x00);
 
-    SIM800_State = SIM800_TCP_CONNECTED;
+    hSIM800.State = SIM800_TCP_CONNECTED;
 
     return 1;
 }
@@ -620,17 +630,17 @@ uint8_t SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
-    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
 
-    SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xC0); /** MQTT ping */
     SIM800_UART_Send_Char(0x00);
 
-    SIM800_State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
+    hSIM800.State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
 
     return 1;
 }
@@ -650,7 +660,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
                             uint8_t retain,
                             uint16_t message_id)
 {
-    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
@@ -659,7 +669,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     uint8_t pub = 0x30 | ((dup & 0x01) << 3) | ((qos & 0x03) << 1) | (retain & 0x01);
 
-    SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(pub); /** MQTT publish fixed header */
 
@@ -701,7 +711,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
     {
         /** blocking */
         SIM800_UART_Send_Bytes(message, message_len);
-        SIM800_State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
+        hSIM800.State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
     }
 
     return 1;
@@ -716,7 +726,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    if (!SIM800_Is_MQTT_Connected() && SIM800_State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
     {
         return 0;
     }
@@ -725,7 +735,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
     uint32_t packet_len = 2 + 2 + topic_len + 1;
 
-    SIM800_State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
 
@@ -750,7 +760,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
     SIM800_UART_Send_Char(qos);
 
-    SIM800_State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
+    hSIM800.State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
 
     return 1;
 }
@@ -765,13 +775,13 @@ void SIM800_Reset_Complete_Callback(SIM800_Status_t status)
 {
     if (status == SIM800_SUCCESS)
     {
-        SIM800_State = SIM800_RESET_OK;
+        hSIM800.State = SIM800_RESET_OK;
         APP_SIM800_Reset_CB(1);
     }
     else
     {
         // failed
-        SIM800_State = SIM800_IDLE;
+        hSIM800.State = SIM800_IDLE;
         APP_SIM800_Reset_CB(0);
     }
 }
@@ -785,13 +795,13 @@ void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
 {
     if (status == SIM800_SUCCESS)
     {
-        SIM800_State = SIM800_TCP_CONNECTED;
+        hSIM800.State = SIM800_TCP_CONNECTED;
         APP_SIM800_TCP_CONN_CB(1);
     }
     else
     {
         // failed
-        SIM800_State = SIM800_RESET_OK;
+        hSIM800.State = SIM800_RESET_OK;
         APP_SIM800_TCP_CONN_CB(0);
     }
 }
@@ -802,8 +812,8 @@ void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
 void SIM800_TCP_CONN_Closed_Callback(void)
 {
     /** TCP connection closed due to inactivity or server closed the connection */
-    /** set SIM800_State to SIM800_RESET_OK to indicate new tcp connection is required */
-    SIM800_State = SIM800_RESET_OK;
+    /** set hSIM800.State to SIM800_RESET_OK to indicate new tcp connection is required */
+    hSIM800.State = SIM800_RESET_OK;
     APP_SIM800_TCP_Closed_CB();
 }
 
@@ -816,12 +826,12 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
     if (code == 0)
     {
-        SIM800_State = SIM800_MQTT_CONNECTED;
+        hSIM800.State = SIM800_MQTT_CONNECTED;
         APP_SIM800_MQTT_CONN_CB(1);
     }
     else
     {
-        SIM800_State = SIM800_RESET_OK;
+        hSIM800.State = SIM800_RESET_OK;
         APP_SIM800_MQTT_CONN_CB(code);
     }
 }
@@ -893,7 +903,7 @@ void SIM800_TIM_ISR(void)
 {
     SIM800_Status_t sim800_result = SIM800_BUSY;
 
-    switch (SIM800_State)
+    switch (hSIM800.State)
     {
     case SIM800_IDLE:
         break;
@@ -931,13 +941,13 @@ void SIM800_TIM_ISR(void)
 
     case SIM800_MQTT_CONNECTED:
         /** check if we need to sen PUBACK */
-        if (SIM800_PUBACK_Data.Flag)
+        if (hSIM800.PUBREC.Flag)
         {
-            SIM800_PUBACK_Data.Flag = 0;
+            hSIM800.PUBREC.Flag = 0;
             SIM800_UART_Send_Char(0x40); /** PUBACK header */
             SIM800_UART_Send_Char(0x02);
-            SIM800_UART_Send_Char((SIM800_PUBACK_Data.Message_ID >> 8) & 0xFF);
-            SIM800_UART_Send_Char(SIM800_PUBACK_Data.Message_ID & 0xFF);
+            SIM800_UART_Send_Char((hSIM800.PUBREC.Message_ID >> 8) & 0xFF);
+            SIM800_UART_Send_Char(hSIM800.PUBREC.Message_ID & 0xFF);
         }
         break;
     case SIM800_MQTT_TRANSMITTING:
@@ -953,7 +963,7 @@ void EXTI1_IRQHandler(void)
 {
     while (SIM800_UART_Get_Count())
     {
-        if (SIM800_State >= SIM800_TCP_CONNECTED)
+        if (hSIM800.State >= SIM800_TCP_CONNECTED)
         {
             /** in transparent mode */
             char rx_chars[64] = "";
@@ -1009,8 +1019,8 @@ void EXTI1_IRQHandler(void)
                         message_id = (rx_chars[0] << 8) | rx_chars[1];
                         msg_len -= 2;
 
-                        SIM800_PUBACK_Data.Flag = 1; /** indicates need to send PUBACK*/
-                        SIM800_PUBACK_Data.Message_ID = message_id;
+                        hSIM800.PUBREC.Flag = 1; /** indicates need to send PUBACK*/
+                        hSIM800.PUBREC.Message_ID = message_id;
                     }
 
                     if (msg_len > sizeof(msg))
@@ -1028,7 +1038,7 @@ void EXTI1_IRQHandler(void)
                     {
                         if (rx_chars[0] == 0x20 && rx_chars[1] == 0x02)
                         {
-                            SIM800_Response_Flags.SIM800_RESP_MQTT_CONNACK = 1;
+                            hSIM800.RESP_Flags.SIM800_RESP_MQTT_CONNACK = 1;
                             SIM800_MQTT_CONNACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
                         }
                     }
@@ -1038,7 +1048,7 @@ void EXTI1_IRQHandler(void)
                     SIM800_UART_Get_Chars(rx_chars, 4, 0);
                     if (rx_chars[0] == 0x40 && rx_chars[1] == 0x02)
                     {
-                        SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 1;
+                        hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBACK = 1;
                         SIM800_MQTT_PUBACK_Callback(rx_chars[2] << 8 | rx_chars[3]);
                     }
                 }
@@ -1047,7 +1057,7 @@ void EXTI1_IRQHandler(void)
                     SIM800_UART_Get_Chars(rx_chars, 5, 0);
                     if (rx_chars[0] == 0x90 && rx_chars[1] == 0x03)
                     {
-                        SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 1;
+                        hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBACK = 1;
                         SIM800_MQTT_SUBACK_Callback(rx_chars[2] << 8 | rx_chars[3], rx_chars[4]);
                     }
                 }
@@ -1056,7 +1066,7 @@ void EXTI1_IRQHandler(void)
                     SIM800_UART_Get_Chars(rx_chars, 2, 0);
                     if (rx_chars[0] == 0xD0 && rx_chars[1] == 0x00)
                     {
-                        SIM800_Response_Flags.SIM800_RESP_MQTT_PUBACK = 1;
+                        hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBACK = 1;
                         SIM800_MQTT_Ping_Callback();
                     }
                 }
@@ -1083,35 +1093,35 @@ void EXTI1_IRQHandler(void)
 
             if (strcmp(line, "OK") == 0)
             {
-                SIM800_Response_Flags.SIM800_RESP_OK = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_OK = 1;
             }
             else if (strcmp(line, "Call Ready") == 00)
             {
-                SIM800_Response_Flags.SIM800_RESP_CALL_READY = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_CALL_READY = 1;
             }
             else if (strcmp(line, "SMS Ready") == 0)
             {
-                SIM800_Response_Flags.SIM800_RESP_SMS_READY = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_SMS_READY = 1;
             }
             else if (strcmp(line, "+CGATT: 1") == 0)
             {
-                SIM800_Response_Flags.SIM800_RESP_GPRS_READY = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_GPRS_READY = 1;
             }
             else if (strcmp(line, "SHUT OK") == 0)
             {
-                SIM800_Response_Flags.SIM800_RESP_SHUT_OK = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_SHUT_OK = 1;
             }
             else if (strcmp(line, "CONNECT") == 0)
             {
-                SIM800_Response_Flags.SIM800_RESP_CONNECT = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_CONNECT = 1;
             }
             else if (CH_In_STR('.', line) == 3)
             {
-                SIM800_Response_Flags.SIM800_RESP_IP = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_IP = 1;
             }
             else if (strncmp(line, "+CCLK: ", 7) == 0)
             {
-                SIM800_Response_Flags.SIM800_RESP_TIME = 1;
+                hSIM800.RESP_Flags.SIM800_RESP_TIME = 1;
                 struct SIM800_Date_Time_t dt;
                 dt.Year = (line[8] - '0') * 10 + line[9] - '0';
                 dt.Month = (line[11] - '0') * 10 + line[12] - '0';
@@ -1132,9 +1142,9 @@ void EXTI1_IRQHandler(void)
  */
 void SIM800_MQTT_TX_Complete_Callback(void)
 {
-    if (SIM800_State == SIM800_MQTT_TRANSMITTING)
+    if (hSIM800.State == SIM800_MQTT_TRANSMITTING)
     {
-        SIM800_State = SIM800_MQTT_CONNECTED;
+        hSIM800.State = SIM800_MQTT_CONNECTED;
     }
 }
 

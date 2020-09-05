@@ -21,7 +21,7 @@ typedef union CONN_Flag_t
     } Bits;
 } CONN_Flag_t;
 
-enum SIM800_State_t
+typedef enum SIM800_State_t
 {
     SIM800_IDLE,
     SIM800_RESETING,
@@ -33,7 +33,7 @@ enum SIM800_State_t
     SIM800_MQTT_CONNECTED,
 
     SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
-};
+} SIM800_State_t;
 
 struct SIM800_Date_Time_t
 {
@@ -58,7 +58,7 @@ uint8_t SIM800_MQTT_Disconnect(void);
 
 uint8_t SIM800_Is_MQTT_Connected();
 
-enum SIM800_State_t SIM800_Get_State(void);
+SIM800_State_t SIM800_Get_State(void);
 
 uint8_t SIM800_MQTT_Ping(void);
 
