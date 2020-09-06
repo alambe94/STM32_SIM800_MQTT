@@ -951,12 +951,12 @@ static void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
  * @param qos qos of received message
  * @param message_id message id
  */
-static void SIM800_MQTT_Received_Callback(char *topic,
-                                          char *message,
-                                          uint32_t msg_len,
-                                          uint8_t dup,
-                                          uint8_t qos,
-                                          uint16_t message_id)
+static void SIM800_MQTT_PUBREC_Callback(char *topic,
+                                        char *message,
+                                        uint32_t msg_len,
+                                        uint8_t dup,
+                                        uint8_t qos,
+                                        uint16_t message_id)
 {
     APP_SIM800_MQTT_MSG_CB(topic, message, msg_len, dup, qos, message_id);
 }
@@ -1106,7 +1106,7 @@ void EXTI1_IRQHandler(void)
                     }
                     SIM800_UART_Get_Chars(msg, msg_len, 0);
 
-                    SIM800_MQTT_Received_Callback(topic, msg, msg_len, dup, qos, message_id);
+                    SIM800_MQTT_PUBREC_Callback(topic, msg, msg_len, dup, qos, message_id);
                 }
                 else if (rx_chars[0] == 0x20)
                 {
