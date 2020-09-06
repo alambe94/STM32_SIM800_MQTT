@@ -35,7 +35,7 @@ typedef enum SIM800_State_t
     SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
 } SIM800_State_t;
 
-struct SIM800_Date_Time_t
+typedef struct SIM800_Date_Time_t
 {
     uint8_t Year;
     uint8_t Month;
@@ -44,7 +44,7 @@ struct SIM800_Date_Time_t
     uint8_t Hours;
     uint8_t Minutes;
     uint8_t Seconds;
-};
+}SIM800_Date_Time_t;
 
 void SIM800_Init(void);
 
@@ -89,17 +89,19 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos);
 /** WAEK callbacks need to br defined by user app ****/
 void APP_SIM800_Reset_CB(uint8_t reset_ok);
 void APP_SIM800_Date_Time_CB(struct SIM800_Date_Time_t *dt);
+void APP_SIM800_IP_Address_CB(char *ip);
 void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok);
 void APP_SIM800_TCP_Closed_CB(void);
-void APP_SIM800_MQTT_CONN_CB(uint8_t mqtt_ok);
+void APP_SIM800_MQTT_CONN_Failed_CB(void);
+void APP_SIM800_MQTT_CONNACK_CB(uint8_t mqtt_ok);
 void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id);
 void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos);
 void APP_SIM800_MQTT_Ping_CB(void);
-void APP_SIM800_MQTT_MSG_CB(char *topic,
-                            char *message,
-                            uint32_t mesg_len,
-                            uint8_t dup,
-                            uint8_t qos,
-                            uint16_t message_id);
+void APP_SIM800_MQTT_PUBREC_CB(char *topic,
+                               char *message,
+                               uint32_t mesg_len,
+                               uint8_t dup,
+                               uint8_t qos,
+                               uint16_t message_id);
 
 #endif /* SIM800_MQTT_H_ */
