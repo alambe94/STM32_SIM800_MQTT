@@ -632,7 +632,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     return 1;
 }
-SIM800_Status_t _SIM800_MQTT_Connect(void)
+static SIM800_Status_t _SIM800_MQTT_Connect(void)
 {
     SIM800_Status_t sim800_result = SIM800_BUSY;
 
@@ -829,7 +829,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
  *        callback response for @see SIM800_Reset
  * @param code reset success(GPRS is active) of failed
  */
-void SIM800_Reset_Complete_Callback(SIM800_Status_t status)
+static void SIM800_Reset_Complete_Callback(SIM800_Status_t status)
 {
     if (status == SIM800_SUCCESS)
     {
@@ -849,7 +849,7 @@ void SIM800_Reset_Complete_Callback(SIM800_Status_t status)
  *        callback response for @see SIM800_TCP_Connect
  * @param code TCP connection success of failed
  */
-void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
+static void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
 {
     if (status == SIM800_SUCCESS)
     {
@@ -867,7 +867,7 @@ void SIM800_TCP_CONN_Complete_Callback(SIM800_Status_t status)
 /**
  * @brief called when TCP connection is closed
  */
-void SIM800_TCP_CONN_Closed_Callback(void)
+static void SIM800_TCP_CONN_Closed_Callback(void)
 {
     /** TCP connection closed due to inactivity or server closed the connection */
     /** set hSIM800.State to SIM800_RESET_OK to indicate new tcp connection is required */
@@ -879,7 +879,7 @@ void SIM800_TCP_CONN_Closed_Callback(void)
  * @brief called when MQTT CONN failed
  *        callback response for @see SIM800_MQTT_Connect if nothing is received from broker
  */
-void SIM800_MQTT_CONN_Failed_Callback(void)
+static void SIM800_MQTT_CONN_Failed_Callback(void)
 {
     hSIM800.State = SIM800_RESET_OK;
 }
@@ -889,7 +889,7 @@ void SIM800_MQTT_CONN_Failed_Callback(void)
  *        callback response for @see SIM800_MQTT_Connect
  * @param code return code from broker
  */
-void SIM800_MQTT_CONNACK_Callback(uint16_t code)
+static void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
     if (code == 0)
     {
@@ -908,7 +908,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
  *        callback response for @see SIM800_MQTT_Publish
  * @param message_id message on which ack is received
  */
-void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
+static void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
 {
     APP_SIM800_MQTT_PUBACK_CB(message_id);
 }
@@ -919,7 +919,7 @@ void SIM800_MQTT_PUBACK_Callback(uint16_t message_id)
  * @param packet_id packet on which ack is received
  * @param qos of topic
  */
-void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
+static void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
 {
     APP_SIM800_MQTT_SUBACK_CB(packet_id, qos);
 }
@@ -928,7 +928,7 @@ void SIM800_MQTT_SUBACK_Callback(uint16_t packet_id, uint8_t qos)
  * @brief called when ping response is received
  *        callback response for @see SIM800_MQTT_Ping
  */
-void SIM800_MQTT_Ping_Callback()
+static void SIM800_MQTT_Ping_Callback()
 {
     APP_SIM800_MQTT_Ping_CB();
 }
@@ -937,7 +937,7 @@ void SIM800_MQTT_Ping_Callback()
  * @brief called when network time is received
  *        callback response for @see SIM800_Get_Time
  */
-void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
+static void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
 {
     APP_SIM800_Date_Time_CB(dt);
 }
@@ -951,12 +951,12 @@ void SIM800_MQTT_Date_Time_Callback(struct SIM800_Date_Time_t *dt)
  * @param qos qos of received message
  * @param message_id message id
  */
-void SIM800_MQTT_Received_Callback(char *topic,
-                                   char *message,
-                                   uint32_t msg_len,
-                                   uint8_t dup,
-                                   uint8_t qos,
-                                   uint16_t message_id)
+static void SIM800_MQTT_Received_Callback(char *topic,
+                                          char *message,
+                                          uint32_t msg_len,
+                                          uint8_t dup,
+                                          uint8_t qos,
+                                          uint16_t message_id)
 {
     APP_SIM800_MQTT_MSG_CB(topic, message, msg_len, dup, qos, message_id);
 }
@@ -1011,7 +1011,7 @@ void SIM800_TIM_ISR(void)
         break;
 
     case SIM800_MQTT_CONNECTED_IDLE:
-        /** check if we need to sen PUBACK */
+        /** check if we need to send PUBACK */
         if (hSIM800.PUBREC.Flag)
         {
             hSIM800.PUBREC.Flag = 0;
@@ -1197,7 +1197,6 @@ void EXTI1_IRQHandler(void)
             }
             else if (strncmp(line, "+CCLK: ", 7) == 0)
             {
-                hSIM800.RESP_Flags.SIM800_RESP_TIME = 1;
                 struct SIM800_Date_Time_t dt;
                 dt.Year = (line[8] - '0') * 10 + line[9] - '0';
                 dt.Month = (line[11] - '0') * 10 + line[12] - '0';
@@ -1206,6 +1205,8 @@ void EXTI1_IRQHandler(void)
                 dt.Hours = (line[17] - '0') * 10 + line[18] - '0';
                 dt.Minutes = (line[20] - '0') * 10 + line[21] - '0';
                 dt.Seconds = (line[23] - '0') * 10 + line[24] - '0';
+
+                hSIM800.RESP_Flags.SIM800_RESP_TIME = 1;
                 SIM800_MQTT_Date_Time_Callback(&dt);
             }
         }
