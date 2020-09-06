@@ -64,6 +64,9 @@ typedef struct SIM800_Handle_t
     uint8_t TCP_Retry;
 
     uint32_t Next_Tick;
+
+    HAL_LockTypeDef Lock_TX; /** lock TX state machine */
+    HAL_LockTypeDef Lock_RX; /** lock RX state machine */
 } SIM800_Handle_t;
 
 /** hold sim800 handle */
@@ -172,7 +175,7 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_Is_MQTT_Connected(void)
 {
-    return (hSIM800.State >= SIM800_MQTT_CONNECTED);
+    return (hSIM800.State >= SIM800_MQTT_CONNECTED_IDLE);
 }
 
 /**
@@ -206,6 +209,9 @@ uint8_t SIM800_Get_Time(void)
  */
 uint8_t SIM800_Reset(void)
 {
+    hSIM800.Lock_TX = 1;
+    hSIM800.Lock_RX = 1;
+
     hSIM800.State = SIM800_RESETING;
 
     hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
@@ -222,15 +228,18 @@ uint8_t SIM800_Reset(void)
     hSIM800.RESP_Flags.SIM800_RESP_MQTT_SUBACK = 0;
     hSIM800.RESP_Flags.SIM800_RESP_MQTT_PINGACK = 0;
 
+    hSIM800.Reset_Step = 0;
+    hSIM800.Reset_Retry = 0;
+
     SIM800_UART_Restart();
 
     SIM800_UART_Flush_RX();
 
-    hSIM800.Reset_Step = 0;
-    hSIM800.Reset_Retry = 0;
-
     /** start reset sequence after 100ms */
     hSIM800.Next_Tick = HAL_GetTick() + 100;
+
+    hSIM800.Lock_TX = 0;
+    hSIM800.Lock_RX = 0;
 
     return 1;
 }
@@ -246,8 +255,6 @@ static SIM800_Status_t _SIM800_Reset(void)
         {
         case 0:
             HAL_GPIO_WritePin(RST_SIM800_GPIO_Port, RST_SIM800_Pin, GPIO_PIN_RESET);
-            sim800_result = SIM800_BUSY;
-
             hSIM800.Reset_Step++;
             hSIM800.Next_Tick = tick_now + 1000;
             break;
@@ -371,6 +378,8 @@ static SIM800_Status_t _SIM800_Reset(void)
  */
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
+    hSIM800.Lock_TX = 1;
+
     if (hSIM800.State == SIM800_RESET_OK)
     {
         snprintf(hSIM800.SIM_APN, sizeof(hSIM800.SIM_APN), "%s", sim_apn);
@@ -385,6 +394,8 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 
         return 1;
     }
+
+    hSIM800.Lock_TX = 0;
 
     return 0;
 }
@@ -551,6 +562,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     uint32_t packet_len = 2 + protocol_name_len + 1 + 1 + 2 + 2 + my_id_len;
 
+    hSIM800.Lock_TX = 1;
     hSIM800.State = SIM800_MQTT_CONNECTING;
 
     if (flags.Bits.User_Name && user_name != NULL)
@@ -606,8 +618,9 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
         }
     }
 
-    /** response must be received within this period */
+    /** response must have been received within this period */
     hSIM800.Next_Tick = HAL_GetTick() + 1000;
+    hSIM800.Lock_TX = 0;
 
     return 1;
 }
@@ -642,12 +655,14 @@ uint8_t SIM800_MQTT_Disconnect(void)
         return 0;
     }
 
+    hSIM800.Lock_TX = 1;
     hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
     SIM800_UART_Send_Char(0x00);
 
-    hSIM800.State = SIM800_TCP_CONNECTED;
+    hSIM800.State = SIM800_TCP_CONNECTED; /** mqtt disconnected, goto TCP connected */
+    hSIM800.Lock_TX = 0;
 
     return 1;
 }
@@ -663,12 +678,14 @@ uint8_t SIM800_MQTT_Ping(void)
         return 0;
     }
 
+    hSIM800.Lock_TX = 1;
     hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xC0); /** MQTT ping */
     SIM800_UART_Send_Char(0x00);
 
-    hSIM800.State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
+    hSIM800.State = SIM800_MQTT_CONNECTED_IDLE; /** indicates uart tx is done */
+    hSIM800.Lock_TX = 0;
 
     return 1;
 }
@@ -697,6 +714,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     uint8_t pub = 0x30 | ((dup & 0x01) << 3) | ((qos & 0x03) << 1) | (retain & 0x01);
 
+    hSIM800.Lock_TX = 1;
     hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(pub); /** MQTT publish fixed header */
@@ -739,8 +757,10 @@ uint8_t SIM800_MQTT_Publish(char *topic,
     {
         /** blocking */
         SIM800_UART_Send_Bytes(message, message_len);
-        hSIM800.State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
+        hSIM800.State = SIM800_MQTT_CONNECTED_IDLE; /** indicates uart tx is done */
     }
+
+    hSIM800.Lock_TX = 0;
 
     return 1;
 }
@@ -763,6 +783,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
     uint32_t packet_len = 2 + 2 + topic_len + 1;
 
+    hSIM800.Lock_TX = 1;
     hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
@@ -788,7 +809,8 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
     SIM800_UART_Send_Char(qos);
 
-    hSIM800.State = SIM800_MQTT_CONNECTED; /** indicates uart tx is done */
+    hSIM800.State = SIM800_MQTT_CONNECTED_IDLE; /** indicates uart tx is done */
+    hSIM800.Lock_TX = 0;
 
     return 1;
 }
@@ -863,7 +885,7 @@ void SIM800_MQTT_CONNACK_Callback(uint16_t code)
 {
     if (code == 0)
     {
-        hSIM800.State = SIM800_MQTT_CONNECTED;
+        hSIM800.State = SIM800_MQTT_CONNECTED_IDLE;
         APP_SIM800_MQTT_CONN_CB(code);
     }
     else
@@ -938,6 +960,11 @@ void SIM800_MQTT_Received_Callback(char *topic,
  **/
 void SIM800_TIM_ISR(void)
 {
+    if (hSIM800.Lock_TX)
+    {
+        return;
+    }
+
     SIM800_Status_t sim800_result = SIM800_BUSY;
 
     switch (hSIM800.State)
@@ -975,7 +1002,7 @@ void SIM800_TIM_ISR(void)
         }
         break;
 
-    case SIM800_MQTT_CONNECTED:
+    case SIM800_MQTT_CONNECTED_IDLE:
         /** check if we need to sen PUBACK */
         if (hSIM800.PUBREC.Flag)
         {
@@ -997,6 +1024,11 @@ void SIM800_TIM_ISR(void)
   */
 void EXTI1_IRQHandler(void)
 {
+    if (hSIM800.Lock_RX)
+    {
+        return;
+    }
+
     while (SIM800_UART_Get_Count())
     {
         if (hSIM800.State >= SIM800_TCP_CONNECTED)
@@ -1180,7 +1212,7 @@ void SIM800_MQTT_TX_Complete_Callback(void)
 {
     if (hSIM800.State == SIM800_MQTT_TRANSMITTING)
     {
-        hSIM800.State = SIM800_MQTT_CONNECTED;
+        hSIM800.State = SIM800_MQTT_CONNECTED_IDLE;
     }
 }
 

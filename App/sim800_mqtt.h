@@ -30,7 +30,7 @@ typedef enum SIM800_State_t
     SIM800_TCP_CONNECTED, /** after this modem is in transparent mode */
 
     SIM800_MQTT_CONNECTING,
-    SIM800_MQTT_CONNECTED,
+    SIM800_MQTT_CONNECTED_IDLE,
 
     SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
 } SIM800_State_t;
