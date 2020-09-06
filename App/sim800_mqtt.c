@@ -273,10 +273,20 @@ static SIM800_Status_t _SIM800_Reset(void)
             break;
 
         case 3:
-            /** disable echo */
-            SIM800_UART_Send_String("ATE0\r\n");
-            hSIM800.Reset_Step++;
-            hSIM800.Next_Tick = tick_now + 1000;
+            if (hSIM800.RESP_Flags.SIM800_RESP_OK)
+            {
+                hSIM800.RESP_Flags.SIM800_RESP_OK = 0;
+                /** disable echo */
+                SIM800_UART_Send_String("ATE0\r\n");
+                hSIM800.Reset_Step++;
+                hSIM800.Next_Tick = tick_now + 1000;
+            }
+            else
+            {
+                hSIM800.Reset_Step = 0;
+                hSIM800.Reset_Retry = 0;
+                sim800_result = SIM800_FAILED; /** failed */
+            }
             break;
 
         case 4:
@@ -347,9 +357,7 @@ static SIM800_Status_t _SIM800_Reset(void)
                 hSIM800.Reset_Retry++;
                 if (hSIM800.Reset_Retry >= 2)
                 {
-                    hSIM800.Reset_Step = 0;
-                    hSIM800.Reset_Retry = 0;
-                    sim800_result = SIM800_SUCCESS; /** return success even if time failed */
+                    hSIM800.Reset_Step++;
                 }
             }
             break;
@@ -378,10 +386,10 @@ static SIM800_Status_t _SIM800_Reset(void)
  */
 uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
 {
-    hSIM800.Lock_TX = 1;
-
     if (hSIM800.State == SIM800_RESET_OK)
     {
+        hSIM800.Lock_TX = 1;
+
         snprintf(hSIM800.SIM_APN, sizeof(hSIM800.SIM_APN), "%s", sim_apn);
         snprintf(hSIM800.TCP_IP, sizeof(hSIM800.TCP_IP), "%s", broker);
 
@@ -392,10 +400,10 @@ uint8_t SIM800_TCP_Connect(char *sim_apn, char *broker, uint16_t port)
         hSIM800.Next_Tick = HAL_GetTick() + 100;
         hSIM800.State = SIM800_TCP_CONNECTING;
 
+        hSIM800.Lock_TX = 0;
+
         return 1;
     }
-
-    hSIM800.Lock_TX = 0;
 
     return 0;
 }
@@ -496,7 +504,7 @@ static uint8_t _SIM800_TCP_Connect()
                 SIM800_UART_Printf("AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n",
                                    hSIM800.TCP_IP,
                                    hSIM800.TCP_Port);
-                hSIM800.Next_Tick = tick_now + 3000;
+                hSIM800.Next_Tick = tick_now + 5000;
                 hSIM800.TCP_Step++;
             }
             else
@@ -619,7 +627,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
     }
 
     /** response must have been received within this period */
-    hSIM800.Next_Tick = HAL_GetTick() + 1000;
+    hSIM800.Next_Tick = HAL_GetTick() + 5000;
     hSIM800.Lock_TX = 0;
 
     return 1;
