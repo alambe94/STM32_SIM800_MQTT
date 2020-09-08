@@ -11,7 +11,7 @@
 #include "sim800_uart.h"
 #include "sim800_mqtt.h"
 
-#define USE_UART_RX_DMA 0
+#define USE_UART_RX_DMA 1
 
 /** uart used from comm with sim800 */
 UART_HandleTypeDef *SIM800_UART = &huart3;
@@ -330,8 +330,8 @@ void SIM800_UART_RX_ISR(void)
         __HAL_UART_CLEAR_IDLEFLAG(SIM800_UART);
 
         /** start sim800 rx process */
-        extern void SIM800_RX_Process(void);
-        SIM800_RX_Process();
+        extern void SIM800_MQTT_RX_Ready_Callback(void);
+        SIM800_MQTT_RX_Ready_Callback();
     }
 }
 
