@@ -330,8 +330,8 @@ void SIM800_UART_RX_ISR(void)
         __HAL_UART_CLEAR_IDLEFLAG(SIM800_UART);
 
         /** start sim800 rx process */
-        extern void SIM800_MQTT_RX_Ready_Callback(void);
-        SIM800_MQTT_RX_Ready_Callback();
+        extern void SIM800_RX_Ready_Callback(void);
+        SIM800_RX_Ready_Callback();
     }
 }
 
@@ -341,8 +341,8 @@ void SIM800_UART_RX_ISR(void)
  **/
 void SIM800_UART_TX_CMPLT_ISR(void)
 {
-    extern void SIM800_MQTT_TX_Complete_Callback(void);
-    SIM800_MQTT_TX_Complete_Callback();
+    extern void SIM800_TX_Complete_Callback(void);
+    SIM800_TX_Complete_Callback();
 }
 
 /**

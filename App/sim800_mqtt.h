@@ -42,7 +42,7 @@ typedef struct SIM800_Date_Time_t
     uint8_t Hours;
     uint8_t Minutes;
     uint8_t Seconds;
-}SIM800_Date_Time_t;
+} SIM800_Date_Time_t;
 
 void SIM800_Init(void);
 

@@ -1189,7 +1189,7 @@ void SIM800_TIM_ISR(void)
   * @brief indicates some data is ready to process
   *        called from @see SIM800_UART_RX_ISR in sim800_uart.c
   */
-void SIM800_MQTT_RX_Ready_Callback(void)
+void SIM800_RX_Ready_Callback(void)
 {
     hSIM800.RX_Ready = 1;
 }
@@ -1198,7 +1198,7 @@ void SIM800_MQTT_RX_Ready_Callback(void)
  * @brief called when sim800 modem is using uart dma mode, @see SIM800_UART_TX_CMPLT_ISR
  * @note only applicable if tx dma is used
  */
-void SIM800_MQTT_TX_Complete_Callback(void)
+void SIM800_TX_Complete_Callback(void)
 {
     if (hSIM800.UART_TX_Busy == 1)
     {
