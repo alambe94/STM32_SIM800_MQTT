@@ -576,7 +576,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             char *user_name,
                             char *password)
 {
-    if (hSIM800.State < SIM800_TCP_CONNECTED && hSIM800.UART_TX_Busy)
+    if (hSIM800.State < SIM800_TCP_CONNECTED || hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -679,7 +679,7 @@ static SIM800_Status_t _SIM800_MQTT_Connect(void)
  */
 uint8_t SIM800_MQTT_Disconnect(void)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
+    if (!SIM800_Is_MQTT_Connected() || hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -703,7 +703,7 @@ uint8_t SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
+    if (!SIM800_Is_MQTT_Connected() || hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -735,7 +735,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
                             uint8_t retain,
                             uint16_t message_id)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
+    if (!SIM800_Is_MQTT_Connected() || hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -804,7 +804,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
+    if (!SIM800_Is_MQTT_Connected() || hSIM800.UART_TX_Busy)
     {
         return 0;
     }
