@@ -30,9 +30,7 @@ typedef enum SIM800_State_t
     SIM800_TCP_CONNECTED, /** after this modem is in transparent mode */
 
     SIM800_MQTT_CONNECTING,
-    SIM800_MQTT_CONNECTED_IDLE,
-
-    SIM800_MQTT_TRANSMITTING, /** indicates uart tx is busy */
+    SIM800_MQTT_CONNECTED,
 } SIM800_State_t;
 
 typedef struct SIM800_Date_Time_t
@@ -51,8 +49,6 @@ void SIM800_Init(void);
 uint8_t SIM800_Reset(void);
 
 uint8_t SIM800_Get_Time(void);
-
-void SIM800_RX_Task_Trigger(void);
 
 uint8_t SIM800_MQTT_Disconnect(void);
 
@@ -93,7 +89,7 @@ void APP_SIM800_IP_Address_CB(char *ip);
 void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok);
 void APP_SIM800_TCP_Closed_CB(void);
 void APP_SIM800_MQTT_CONN_Failed_CB(void);
-void APP_SIM800_MQTT_CONNACK_CB(uint8_t mqtt_ok);
+void APP_SIM800_MQTT_CONNACK_CB(uint16_t mqtt_ok);
 void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id);
 void APP_SIM800_MQTT_SUBACK_CB(uint16_t packet_id, uint8_t qos);
 void APP_SIM800_MQTT_Ping_CB(void);

@@ -81,6 +81,14 @@ static uint8_t RB_Is_Full(void)
  */
 static uint32_t RB_Get_Count(void)
 {
+#if (USE_UART_RX_DMA == 1)
+    /** data is written to buffer via uart DMA in background*/
+    /** need to update Write_Index manually */
+    RB_Write_Index = RB_STORAGE_SIZE - SIM800_UART->hdmarx->Instance->NDTR;
+
+    //RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
+#endif
+
     if (RB_Is_Full())
         return RB_STORAGE_SIZE;
     if (RB_Write_Index >= RB_Read_Index)
@@ -321,15 +329,9 @@ void SIM800_UART_RX_ISR(void)
     {
         __HAL_UART_CLEAR_IDLEFLAG(SIM800_UART);
 
-#if (USE_UART_RX_DMA == 1)
-        /** data is written to buffer via uart DMA in background*/
-        /** need to update Write_Index manually */
-        RB_Write_Index = RB_STORAGE_SIZE - SIM800_UART->hdmarx->Instance->NDTR;
-
-        //RB_Full_Flag = (RB_Write_Index == RB_Read_Index);
-#endif
-        /** start sim800 rx task */
-        SIM800_RX_Task_Trigger();
+        /** start sim800 rx process */
+        extern void SIM800_RX_Process(void);
+        SIM800_RX_Process();
     }
 }
 

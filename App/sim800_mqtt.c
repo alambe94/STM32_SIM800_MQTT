@@ -54,7 +54,7 @@ typedef struct SIM800_TCP_Data_t
 /** store info about MSG received from broker */
 typedef struct MQTT_PUBREC_Data_t
 {
-    uint8_t PUBACK_FLAG;
+    uint8_t PUBACK_Flag;
     uint8_t DUP;
     uint8_t QOS;
     uint16_t MSG_ID;
@@ -87,10 +87,12 @@ typedef struct SIM800_Handle_t
     SIM800_Response_Flags_t RESP_Flags;
     SIM800_State_t State;
 
-    SIM800_Date_Time_t Time;
-
     uint8_t Reset_Step;
     uint8_t Reset_Retry;
+
+    uint8_t UART_TX_Busy;
+
+    SIM800_Date_Time_t Time;
 
     SIM800_TCP_Data_t TCP;
 
@@ -126,32 +128,12 @@ static uint32_t CH_In_STR(char ch, char *str)
 }
 
 /**
-  * @brief  one of the unused gpio pin interrupt is used to handle SIM800 background task
-  *         it will be software triggered by sim800 uart idle interrupt
-  * @note   set NVIC to 4 bit for preemption 0 bit for sub priority, tx task timer interrupt < this interrupt priority < systick
-  * @warning interrupt on this GPIO can no longer be used and usage is not visible on cubeMX generator
-  */
-void SIM800_RX_Task_Init(void)
-{
-    HAL_NVIC_SetPriority((IRQn_Type)EXTI1_IRQn, 3, 0);
-    HAL_NVIC_EnableIRQ((IRQn_Type)EXTI1_IRQn);
-}
-
-/**
-  * @brief  one of the timer is used to generate periodic interrupt at 10ms (adjustable)
+  * @brief  sim800 state machine, one of the timer is used to generate periodic interrupt at 10ms (adjustable)
   * @note set NVIC to 4 bit preemption 0 bit for sub priority, this interrupt priority < systick 
   */
 void SIM800_SM_Task_Init(void)
 {
     /** configured in cube @see tim.c */
-}
-
-/**
-  * @brief trigger sim800 rx task interrupt
-  */
-void SIM800_RX_Task_Trigger(void)
-{
-    HAL_NVIC_SetPendingIRQ(EXTI1_IRQn);
 }
 
 /**
@@ -161,8 +143,6 @@ void SIM800_Init(void)
 {
     /** uart used for comm is configured in cube @see usart.c */
     SIM800_UART_Init();
-
-    SIM800_RX_Task_Init();
 
     SIM800_SM_Task_Init();
 
@@ -211,7 +191,7 @@ uint8_t SIM800_Check_Response(char *buff, uint32_t timeout)
  */
 uint8_t SIM800_Is_MQTT_Connected(void)
 {
-    return (hSIM800.State >= SIM800_MQTT_CONNECTED_IDLE);
+    return (hSIM800.State >= SIM800_MQTT_CONNECTED);
 }
 
 /**
@@ -261,6 +241,7 @@ uint8_t SIM800_Reset(void)
 
     hSIM800.RESP_Flags.SIM800_RESP_MQTT_CONNACK = 0;
     hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBACK = 0;
+    hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBREC = 0;
     hSIM800.RESP_Flags.SIM800_RESP_MQTT_SUBACK = 0;
     hSIM800.RESP_Flags.SIM800_RESP_MQTT_PINGACK = 0;
 
@@ -595,7 +576,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
                             char *user_name,
                             char *password)
 {
-    if (hSIM800.State < SIM800_TCP_CONNECTED)
+    if (hSIM800.State < SIM800_TCP_CONNECTED && hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -609,6 +590,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
     uint32_t packet_len = 2 + protocol_name_len + 1 + 1 + 2 + 2 + my_id_len;
 
     hSIM800.Lock_TX = 1;
+    hSIM800.UART_TX_Busy = 1;
     hSIM800.State = SIM800_MQTT_CONNECTING;
 
     if (flags.Bits.User_Name && user_name != NULL)
@@ -666,6 +648,7 @@ uint8_t SIM800_MQTT_Connect(char *protocol_name,
 
     /** response must have been received within this period */
     hSIM800.Next_Tick = HAL_GetTick() + 5000;
+    hSIM800.UART_TX_Busy = 0;
     hSIM800.Lock_TX = 0;
 
     return 1;
@@ -696,17 +679,18 @@ static SIM800_Status_t _SIM800_MQTT_Connect(void)
  */
 uint8_t SIM800_MQTT_Disconnect(void)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
     {
         return 0;
     }
 
     hSIM800.Lock_TX = 1;
-    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.UART_TX_Busy = 1; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xD0); /** MQTT disconnect */
     SIM800_UART_Send_Char(0x00);
 
+    hSIM800.UART_TX_Busy = 0;
     hSIM800.State = SIM800_TCP_CONNECTED; /** mqtt disconnected, goto TCP connected */
     hSIM800.Lock_TX = 0;
 
@@ -719,18 +703,18 @@ uint8_t SIM800_MQTT_Disconnect(void)
  */
 uint8_t SIM800_MQTT_Ping(void)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
     {
         return 0;
     }
 
     hSIM800.Lock_TX = 1;
-    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.UART_TX_Busy = 1; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0xC0); /** MQTT ping */
     SIM800_UART_Send_Char(0x00);
 
-    hSIM800.State = SIM800_MQTT_CONNECTED_IDLE; /** indicates uart tx is done */
+    hSIM800.UART_TX_Busy = 0; /** indicates uart tx is done */
     hSIM800.Lock_TX = 0;
 
     return 1;
@@ -751,7 +735,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
                             uint8_t retain,
                             uint16_t message_id)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -761,7 +745,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
     uint8_t pub = 0x30 | ((dup & 0x01) << 3) | ((qos & 0x03) << 1) | (retain & 0x01);
 
     hSIM800.Lock_TX = 1;
-    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.UART_TX_Busy = 1; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(pub); /** MQTT publish fixed header */
 
@@ -803,7 +787,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
     {
         /** blocking */
         SIM800_UART_Send_Bytes(message, message_len);
-        hSIM800.State = SIM800_MQTT_CONNECTED_IDLE; /** indicates uart tx is done */
+        hSIM800.UART_TX_Busy = 0; /** indicates uart tx is done */
     }
 
     hSIM800.Lock_TX = 0;
@@ -820,7 +804,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
  */
 uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 {
-    if (!SIM800_Is_MQTT_Connected() && hSIM800.State != SIM800_MQTT_TRANSMITTING)
+    if (!SIM800_Is_MQTT_Connected() && hSIM800.UART_TX_Busy)
     {
         return 0;
     }
@@ -830,7 +814,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
     uint32_t packet_len = 2 + 2 + topic_len + 1;
 
     hSIM800.Lock_TX = 1;
-    hSIM800.State = SIM800_MQTT_TRANSMITTING; /** indicates uart tx is busy */
+    hSIM800.UART_TX_Busy = 1; /** indicates uart tx is busy */
 
     SIM800_UART_Send_Char(0x82); /** MQTT subscribe fixed header */
 
@@ -855,7 +839,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
     SIM800_UART_Send_Char(qos);
 
-    hSIM800.State = SIM800_MQTT_CONNECTED_IDLE; /** indicates uart tx is done */
+    hSIM800.UART_TX_Busy = 0; /** indicates uart tx is done */
     hSIM800.Lock_TX = 0;
 
     return 1;
@@ -863,7 +847,7 @@ uint8_t SIM800_MQTT_Subscribe(char *topic, uint8_t packet_id, uint8_t qos)
 
 /************************* ISR ***************************/
 /**
- * @brief this is sim800 state machine TASK, called when sim800 timer expires every 10ms(adjustable)
+ * @brief this is sim800 state machine task, called when sim800 timer expires every 10ms(adjustable)
  *        called from @see HAL_TIM_PeriodElapsedCallback in stm32f4xx_it.c
  **/
 void SIM800_TIM_ISR(void)
@@ -930,9 +914,9 @@ void SIM800_TIM_ISR(void)
         }
         else
         {
-            if (hSIM800.CONNACK.Code == 0x00)
+            if (hSIM800.CONNACK.Code == 0x00) /** session present ignored */
             {
-                hSIM800.State = SIM800_MQTT_CONNECTED_IDLE;
+                hSIM800.State = SIM800_MQTT_CONNECTED;
             }
             else
             {
@@ -943,17 +927,18 @@ void SIM800_TIM_ISR(void)
     }
     break;
 
-    case SIM800_MQTT_CONNECTED_IDLE:
-        if (hSIM800.PUBREC.PUBACK_FLAG)
+    case SIM800_MQTT_CONNECTED:
+        if (hSIM800.PUBREC.PUBACK_Flag && !hSIM800.UART_TX_Busy)
         {
-            hSIM800.PUBREC.PUBACK_FLAG = 0;
+            /** send PUBACK */
+        	hSIM800.UART_TX_Busy = 1;
+            hSIM800.PUBREC.PUBACK_Flag = 0;
             SIM800_UART_Send_Char(0x40); /** PUBACK header */
             SIM800_UART_Send_Char(0x02);
             SIM800_UART_Send_Char((hSIM800.PUBREC.MSG_ID >> 8) & 0xFF);
             SIM800_UART_Send_Char(hSIM800.PUBREC.MSG_ID & 0xFF);
+            hSIM800.UART_TX_Busy = 0;
         }
-        break;
-    case SIM800_MQTT_TRANSMITTING:
         break;
     }
 
@@ -964,7 +949,7 @@ void SIM800_TIM_ISR(void)
 
         if (hSIM800.PUBREC.QOS)
         {
-            hSIM800.PUBREC.PUBACK_FLAG = 1; /** need to send PUBACK for this MSG */
+            hSIM800.PUBREC.PUBACK_Flag = 1; /** need to send PUBACK for this MSG */
         }
 
         APP_SIM800_MQTT_PUBREC_CB(hSIM800.PUBREC.Topic,
@@ -1003,22 +988,20 @@ void SIM800_TIM_ISR(void)
 
     if (hSIM800.RESP_Flags.SIM800_RESP_DATE_TIME)
     {
-        hSIM800.RESP_Flags.SIM800_RESP_DATE_TIME = 0;
-        APP_SIM800_Date_Time_CB(&hSIM800.Time);
+    	/** handled in reset sequence */
     }
 
     if (hSIM800.RESP_Flags.SIM800_RESP_IP)
     {
-        hSIM800.RESP_Flags.SIM800_RESP_IP = 0;
-        APP_SIM800_IP_Address_CB(hSIM800.TCP.MY_IP);
+    	/** handled in TCP connect sequence */
     }
 }
 
 /**
-  * @brief this is sim800 RX TASK, software triggered by sim800 uart idle interrupt
-  *        @see SIM800_RX_Task_Trigger & SIM800_UART_RX_ISR in sim800_uart.c
+  * @brief process received data on sim800 uart
+  *        called from @see SIM800_UART_RX_ISR in sim800_uart.c
   */
-void EXTI1_IRQHandler(void)
+void SIM800_RX_Process(void)
 {
     if (hSIM800.Lock_RX)
     {
@@ -1066,12 +1049,13 @@ void EXTI1_IRQHandler(void)
 
                     msg_len = total_len - topic_len - 2;
 
-                    if (topic_len > sizeof(hSIM800.PUBREC.Topic))
+                    if (topic_len > sizeof(hSIM800.PUBREC.Topic) - 1)
                     {
-                        topic_len = sizeof(hSIM800.PUBREC.Topic);
+                        topic_len = sizeof(hSIM800.PUBREC.Topic) -1;
                         /**  TODO handle this exception */
                     }
                     SIM800_UART_Get_Chars(hSIM800.PUBREC.Topic, topic_len, 0);
+                    hSIM800.PUBREC.Topic[topic_len] = '\0';
 
                     if (qos)
                     {
@@ -1088,12 +1072,13 @@ void EXTI1_IRQHandler(void)
                         hSIM800.PUBREC.MSG_ID = 0;
                     }
 
-                    if (msg_len > sizeof(hSIM800.PUBREC.MSG))
+                    if (msg_len > sizeof(hSIM800.PUBREC.MSG) - 1)
                     {
-                        msg_len = sizeof(hSIM800.PUBREC.MSG);
+                        msg_len = sizeof(hSIM800.PUBREC.MSG) - 1;
                         /**  TODO handle this exception */
                     }
                     SIM800_UART_Get_Chars(hSIM800.PUBREC.MSG, msg_len, 0);
+                    hSIM800.PUBREC.MSG[msg_len] = '\0';
                     hSIM800.PUBREC.DUP = dup;
                     hSIM800.RESP_Flags.SIM800_RESP_MQTT_PUBREC = 1;
                 }
@@ -1207,9 +1192,9 @@ void EXTI1_IRQHandler(void)
  */
 void SIM800_MQTT_TX_Complete_Callback(void)
 {
-    if (hSIM800.State == SIM800_MQTT_TRANSMITTING)
+    if (hSIM800.UART_TX_Busy == 1)
     {
-        hSIM800.State = SIM800_MQTT_CONNECTED_IDLE;
+    	hSIM800.UART_TX_Busy = 0;
     }
 }
 
@@ -1266,7 +1251,7 @@ __weak void APP_SIM800_MQTT_CONN_Failed_CB(void)
  *        callback response for @see SIM800_MQTT_Connect
  * @param code return code from broker
  */
-__weak void APP_SIM800_MQTT_CONNACK_CB(uint8_t code)
+__weak void APP_SIM800_MQTT_CONNACK_CB(uint16_t code)
 {
 }
 

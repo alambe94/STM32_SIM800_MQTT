@@ -23,12 +23,12 @@ void App_Main(void)
 {
 	SIM800_Init();
 
-	for(uint16_t i=0; i<sizeof(Packet); i++)
+	for (uint16_t i = 0; i < sizeof(Packet); i++)
 	{
-		Packet[i] = i%10 + 48;
+		Packet[i] = i % 10 + 48;
 	}
 
-	Packet[sizeof(Packet)-1] = '\n';
+	Packet[sizeof(Packet) - 1] = '\n';
 
 	while (1)
 	{
@@ -39,14 +39,14 @@ void App_Main(void)
 
 		if (SIM800_Get_State() == SIM800_RESET_OK)
 		{
-			//SIM800_TCP_Connect("airtelgprs.com", "jarsservices.info", 1883);
+			//SIM800_TCP_Connect("airtelgprs.com", "io.adafruit.com", 1883);
 		}
 
 		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
 		{
 			CONN_Flag_t flags = {.C_Flags = 0xC2};
-			flags.Bits.Password = 0;
-			flags.Bits.User_Name = 0;
+			flags.Bits.Password = 1;
+			flags.Bits.User_Name = 1;
 			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "sfsgfsg", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
 		}
 
@@ -65,9 +65,9 @@ void App_Main(void)
 				}
 			}
 
-			while(1);
+			while (1)
+				;
 		}
-
 	}
 }
 
@@ -87,9 +87,17 @@ void APP_SIM800_TCP_CONN_CB(uint8_t tcp_ok)
 	TCP_Flag = tcp_ok;
 }
 
-void APP_SIM800_MQTT_CONN_CB(uint8_t mqtt_ok)
+void APP_SIM800_TCP_Closed_CB()
 {
-	MQTT_Flag = mqtt_ok;
+}
+
+void APP_SIM800_MQTT_CONNACK_CB(uint16_t code)
+{
+	MQTT_Flag = code;
+}
+
+void APP_SIM800_MQTT_CONN_Failed_CB(void)
+{
 }
 
 void APP_SIM800_MQTT_PUBACK_CB(uint16_t message_id)
@@ -109,12 +117,12 @@ void APP_SIM800_MQTT_Ping_CB(void)
 	Ping_Flag++;
 }
 
-void APP_SIM800_MQTT_MSG_CB(char *topic,
-							char *message,
-							uint32_t mesg_len,
-							uint8_t dup,
-							uint8_t qos,
-							uint16_t message_id)
+void APP_SIM800_MQTT_PUBREC_CB(char *topic,
+							   char *message,
+							   uint32_t mesg_len,
+							   uint8_t dup,
+							   uint8_t qos,
+							   uint16_t message_id)
 {
 	MSG_Received_Count++;
 }
