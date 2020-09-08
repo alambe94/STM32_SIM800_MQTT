@@ -912,7 +912,7 @@ void SIM800_TIM_ISR(void)
             hSIM800.State = SIM800_RESET_OK;
             APP_SIM800_MQTT_CONN_Failed_CB();
         }
-        else
+        else if(sim800_result == SIM800_SUCCESS)
         {
             if (hSIM800.CONNACK.Code == 0x00) /** session present ignored */
             {
