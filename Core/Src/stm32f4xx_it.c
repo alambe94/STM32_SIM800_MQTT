@@ -234,12 +234,12 @@ void DMA1_Stream3_IRQHandler(void)
 void USART3_IRQHandler(void)
 {
   /* USER CODE BEGIN USART3_IRQn 0 */
-  extern void SIM800_UART_RX_ISR(void);
-  SIM800_UART_RX_ISR();
+
   /* USER CODE END USART3_IRQn 0 */
   HAL_UART_IRQHandler(&huart3);
   /* USER CODE BEGIN USART3_IRQn 1 */
-
+  extern void SIM800_UART_RX_ISR(void);
+  SIM800_UART_RX_ISR();
   /* USER CODE END USART3_IRQn 1 */
 }
 
