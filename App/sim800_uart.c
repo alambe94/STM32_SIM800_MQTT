@@ -11,7 +11,7 @@
 #include "sim800_uart.h"
 #include "sim800_mqtt.h"
 
-#define USE_UART_RX_DMA 1
+#define USE_UART_RX_DMA 0
 
 /** uart used from comm with sim800 */
 UART_HandleTypeDef *SIM800_UART = &huart3;

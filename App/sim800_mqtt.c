@@ -778,7 +778,7 @@ uint8_t SIM800_MQTT_Publish(char *topic,
 
     if (message_len > 64)
     {
-        /** non blocking, SIM800_MQTT_TRANSMITTING will be cleared in uart tx dma isr */
+        /** non blocking, UART_TX_Busy will be cleared in uart tx dma isr */
         SIM800_UART_Send_Bytes_DMA(message, message_len);
     }
     else
