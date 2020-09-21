@@ -39,7 +39,7 @@ void App_Main(void)
 
 		if (SIM800_Get_State() == SIM800_RESET_OK)
 		{
-			SIM800_TCP_Connect("airtelgprs.com", "jarsservices.info", 1883);
+			SIM800_TCP_Connect("airtelgprs.com", "mqttXXXXXXXXXXXXXX", 1883);
 		}
 
 		if (SIM800_Get_State() == SIM800_TCP_CONNECTED)
@@ -47,17 +47,17 @@ void App_Main(void)
 			CONN_Flag_t flags = {.C_Flags = 0xC2};
 			flags.Bits.Password = 0;
 			flags.Bits.User_Name = 0;
-			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "sfsgfsg", "alsaad", "aio_uwus43tL6ELXTf4x0zm5YNphD5QN");
+			SIM800_MQTT_Connect("MQTT", 4, flags, 64, "sfsgfsg", "XXXXXXX", "XXXXXXXXXXXXXXXXXXXX");
 		}
 
 		if (SIM800_Is_MQTT_Connected())
 		{
-			SIM800_MQTT_Subscribe("alsaad/feeds/abcd", 74, 1);
+			SIM800_MQTT_Subscribe("xxxxxxxxxxx/feeds/abcd", 74, 1);
 			HAL_Delay(1000);
 
 			for (uint32_t i = 1; i < 11; i++)
 			{
-				if (SIM800_MQTT_Publish("alsaad/feeds/abcd", Packet, 10, 0, 1, 0, i))
+				if (SIM800_MQTT_Publish("xxxxxxxxxxx/feeds/abcd", Packet, 10, 0, 1, 0, i))
 				{
 					HAL_Delay(1000);
 				}
