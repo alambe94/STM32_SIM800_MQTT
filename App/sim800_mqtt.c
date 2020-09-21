@@ -168,8 +168,6 @@ uint32_t SIM800_Get_Response(char *buff, uint32_t buff_size, uint32_t timeout)
 /**
  * @brief check for expected response
  * @param buff expected response
- * @param alt_buff alternate response or other substring
- * @param count max chars to receive
  * @param timeout max wait time in milliseconds
  * @retval return 1 if success else 0
  */
@@ -559,7 +557,7 @@ static uint8_t _SIM800_TCP_Connect()
  * @brief send connect packet to broker
  *        result callback is @see SIM800_MQTT_CONNACK_Callback 
  * @param protocol_version used mqtt version 3 for 3.1 and 4 for 3.1.1
- * @param bitfields for control flags
+ * @param flags for control flags
  * @param keep_alive keep alive interval in seconds
  * @param my_id clients unique ID across mqtt broker
  * @param user_name user name for mqtt broker

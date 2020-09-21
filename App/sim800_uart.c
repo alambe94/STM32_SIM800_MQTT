@@ -13,7 +13,7 @@
 
 #define USE_UART_RX_DMA 0
 
-/** uart used from comm with sim800 */
+/** uart used for comm with sim800 */
 UART_HandleTypeDef *SIM800_UART = &huart3;
 
 /** rx ring buffer data reception from sim800 */
@@ -68,7 +68,7 @@ static void RB_Flush(void)
 /**
  * @brief check if ring buffer is full
  * @retval return 1 if ring buffer is full
- * @note since data is written by dma, RB_Full_Flag can be not set at proper place. So this function might not be useful in this context.
+ * @note if using DMA, since data is written by dma, RB_Full_Flag can be not set at proper place. So this function might not be useful in this context.
  */
 static uint8_t RB_Is_Full(void)
 {
@@ -212,8 +212,7 @@ void SIM800_UART_Send_Bytes_DMA(char *data, uint32_t count)
 
 /**
  * @brief send null terminated string
- * @param data input buffer
- * @param number of chars to send
+ * @param str string buffer
  **/
 void SIM800_UART_Send_String(char *str)
 {
@@ -225,7 +224,6 @@ void SIM800_UART_Send_String(char *str)
 
 /**
  * @brief wrapper printf around SIM800 uart
-
  * @param fmt formatted string
  **/
 void SIM800_UART_Printf(const char *fmt, ...)
@@ -240,7 +238,7 @@ void SIM800_UART_Printf(const char *fmt, ...)
 }
 
 /**
- * @brief get characters in rx buffer
+ * @brief get characters count in rx buffer
  * @param timeout
  */
 uint32_t SIM800_UART_Get_Count(void)
@@ -250,7 +248,7 @@ uint32_t SIM800_UART_Get_Count(void)
 
 /**
  * @brief get character
- * @param timeout
+ * @retval return -1 if nochar is available
  */
 int SIM800_UART_Get_Char(void)
 {
@@ -259,6 +257,7 @@ int SIM800_UART_Get_Char(void)
 
 /**
  * @brief peek character
+ * @retval return -1 if nochar is available
  */
 int SIM800_UART_Peek_Char(void)
 {
@@ -267,6 +266,8 @@ int SIM800_UART_Peek_Char(void)
 
 /**
  * @brief get chars
+ * @param buffer
+ * @param count
  * @param timeout
  * @retval number chars received
  */
@@ -276,7 +277,8 @@ uint32_t SIM800_UART_Get_Chars(char *buffer, uint32_t count, uint32_t timeout)
 }
 
 /**
- * @brief get chars upto '\r' or max upto timeout
+ * @brief get chars upto '\r' or max upto timeout or buff_size
+ * @param buffer
  * @param buff_size max count that can be written to buffer before '\r' is found
  * @param timeout maximum number of millisecond to wait before '\r' is found
  * @retval number chars received
